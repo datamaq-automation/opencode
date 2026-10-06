@@ -81,6 +81,8 @@ import {
 
 import type { EventSource } from "./context/sdk"
 import { DialogVariant } from "./component/dialog-variant"
+import { DialogTelemetry } from "./component/dialog-telemetry"
+import { TelemetryProvider } from "./context/telemetry"
 import { createTuiAttention } from "./attention"
 import * as TuiAudio from "./audio"
 import { win32DisableProcessedInput, win32FlushInputBuffer } from "./terminal-win32"
@@ -307,9 +309,10 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                                               <SyncProvider>
                                                 <DataProvider>
                                                   <ThemeProvider mode={mode}>
-                                                    <LocalProvider>
-                                                      <PromptStashProvider>
-                                                        <DialogProvider>
+                                                    <TelemetryProvider>
+                                                      <LocalProvider>
+                                                        <PromptStashProvider>
+                                                          <DialogProvider>
                                                           <FrecencyProvider>
                                                             <PromptHistoryProvider>
                                                               <PromptRefProvider>
@@ -324,9 +327,10 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                                                               </PromptRefProvider>
                                                             </PromptHistoryProvider>
                                                           </FrecencyProvider>
-                                                        </DialogProvider>
-                                                      </PromptStashProvider>
-                                                    </LocalProvider>
+                                                          </DialogProvider>
+                                                        </PromptStashProvider>
+                                                      </LocalProvider>
+                                                    </TelemetryProvider>
                                                   </ThemeProvider>
                                                 </DataProvider>
                                               </SyncProvider>
@@ -818,6 +822,15 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         category: "System",
       },
       {
+        name: "telemetry.show",
+        title: "View token telemetry",
+        slashName: "telemetry",
+        run: () => {
+          dialog.replace(() => <DialogTelemetry />)
+        },
+        category: "System",
+      },
+      {
         name: "docs.open",
         title: "Open docs",
         run: () => {
@@ -1131,6 +1144,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       <Show when={!startup.skipInitialLoading}>
         <StartupLoading ready={ready} />
       </Show>
+      <DialogTelemetry />
     </box>
   )
 }
