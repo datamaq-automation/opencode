@@ -577,10 +577,12 @@ export const ShellTool = Tool.define(
       if (aborted) meta.push("User aborted the command")
       const raw = list.map((item) => item.text).join("")
       const targetLines = Math.min(limits.maxLines, 80)
-      const pruneResult = TerminalPruner.prune(raw, {
-        maxLines: targetLines,
-        command: input.command,
-      })
+      const pruneResult = flags.disableToolOutputOptimizations
+        ? { pruned: false, content: raw }
+        : TerminalPruner.prune(raw, {
+            maxLines: targetLines,
+            command: input.command,
+          })
 
       if (pruneResult.pruned) {
         cut = true

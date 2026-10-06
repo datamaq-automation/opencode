@@ -1216,6 +1216,20 @@ describe("tool.shell truncation", () => {
     ),
   )
 
+  it.live("does not prune output when tool output optimizations are disabled", () =>
+    runIn(
+      projectRoot,
+      Effect.gen(function* () {
+        const result = yield* run({
+          command: `for i in $(seq 1 200); do echo "✓ suite > test_$i passed [1ms]"; done; echo "FAIL: suite > critical_failure"`,
+        }).pipe(Effect.provide(RuntimeFlags.layer({ disableToolOutputOptimizations: true })))
+        expect(result.output).toContain("test_100 passed")
+        expect(result.output).not.toContain("pruned")
+        expect((result.metadata as { telemetry?: unknown }).telemetry).toBeUndefined()
+      }),
+    ),
+  )
+
   it.live("prunes noisy test output while preserving full raw log on disk", () =>
     runIn(
       projectRoot,

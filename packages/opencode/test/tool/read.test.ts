@@ -56,10 +56,15 @@ const readLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       Ripgrep.node,
       Truncate.node,
       Skeleton.node,
+      RuntimeFlags.node,
     ]),
+    [[RuntimeFlags.node, RuntimeFlags.layer(flags)]],
   )
 
 const it = testEffect(Layer.mergeAll(readLayer(), testInstanceStoreLayer))
+const withoutOptimizations = testEffect(
+  Layer.mergeAll(readLayer({ disableToolOutputOptimizations: true }), testInstanceStoreLayer),
+)
 
 const init = Effect.fn("ReadToolTest.init")(function* () {
   const info = yield* ReadTool
@@ -651,6 +656,17 @@ describe("tool.read skeleton view", () => {
       expect(result.output).toContain("<view>skeleton</view>")
       expect(result.output).toContain('view="full"')
       expect(result.output).not.toContain("return 7")
+    }),
+  )
+
+  withoutOptimizations.live("never returns a skeleton when tool output optimizations are disabled", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      yield* put(path.join(dir, "large.ts"), large)
+
+      const result = yield* exec(dir, { filePath: path.join(dir, "large.ts"), view: "skeleton" })
+      expect(result.output).not.toContain("<view>skeleton</view>")
+      expect(result.output).toContain("return 7")
     }),
   )
 

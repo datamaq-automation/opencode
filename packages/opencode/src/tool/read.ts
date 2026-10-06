@@ -11,6 +11,7 @@ import { Instruction } from "../session/instruction"
 import { isPdfAttachment, sniffAttachmentMime } from "@/util/media"
 import { Token } from "@/util/token"
 import { Skeleton } from "../skeleton"
+import { RuntimeFlags } from "@/effect/runtime-flags"
 
 const DEFAULT_READ_LIMIT = 2000
 const MAX_LINE_LENGTH = 2000
@@ -78,7 +79,7 @@ type Metadata = {
 export const ReadTool = Tool.define<
   typeof Parameters,
   Metadata,
-  FSUtil.Service | Instruction.Service | LSP.Service | Scope.Scope
+  FSUtil.Service | Instruction.Service | LSP.Service | RuntimeFlags.Service | Scope.Scope
 >(
   "read",
   Effect.gen(function* () {
@@ -86,7 +87,10 @@ export const ReadTool = Tool.define<
     const instruction = yield* Instruction.Service
     const lsp = yield* LSP.Service
     const scope = yield* Scope.Scope
-    const skeleton = yield* Effect.serviceOption(Skeleton.Service)
+    const flags = yield* RuntimeFlags.Service
+    const skeleton = flags.disableToolOutputOptimizations
+      ? Option.none<Skeleton.Interface>()
+      : yield* Effect.serviceOption(Skeleton.Service)
 
     const miss = Effect.fn("ReadTool.miss")(function* (filepath: string) {
       const dir = path.dirname(filepath)
@@ -510,7 +514,12 @@ export const ReadTool = Tool.define<
     })
 
     return {
-      description: DESCRIPTION,
+      // Without skeletons, drop the usage lines that describe them so the model is not told about a missing feature.
+      description: flags.disableToolOutputOptimizations
+        ? DESCRIPTION.split("\n")
+            .filter((line) => !line.includes("skeleton"))
+            .join("\n")
+        : DESCRIPTION,
       parameters: Parameters,
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context<Metadata>) =>
         run(params, ctx).pipe(Effect.orDie),
