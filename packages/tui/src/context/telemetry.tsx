@@ -37,16 +37,16 @@ export const TelemetryProvider = (props: { children: any }) => {
   const event = useEvent()
 
   createEffect(() => {
-    const unsubscribe = event.subscribe((evt) => {
-      if (evt.type === "session.next.tool.telemetry.1") {
-        const data = evt.data as any
+    const unsubscribe = event.subscribe((evt: any) => {
+      if (evt.type === "session.next.tool.telemetry" || evt.type === "session.next.tool.telemetry.1") {
+        const data = evt
         const tel: ToolTelemetry = {
           callID: data.callID,
           name: data.name,
-          rawBytes: data.telemetry.rawBytes,
-          prunedBytes: data.telemetry.prunedBytes,
-          rawTokens: data.telemetry.rawTokens,
-          tokensSaved: data.telemetry.tokensSaved,
+          rawBytes: data.telemetry?.rawBytes || 0,
+          prunedBytes: data.telemetry?.prunedBytes || 0,
+          rawTokens: data.telemetry?.rawTokens || 0,
+          tokensSaved: data.telemetry?.tokensSaved || 0,
           timestamp: Date.now(),
         }
         setTelemetries((prev) => [tel, ...prev.slice(0, 49)])

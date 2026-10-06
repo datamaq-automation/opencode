@@ -35,6 +35,7 @@ export interface Settlement {
   readonly result: ToolResultValue
   readonly output?: ToolOutput
   readonly outputPaths?: ReadonlyArray<string>
+  readonly rawBytes?: number
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/v2/ToolRegistry") {}
@@ -72,13 +73,14 @@ const registryLayer = Layer.effect(
       )
       if ("result" in pending) return pending
       const output = pending.output
+      const rawBytes = (pending as any).rawBytes
       const bounded = yield* resources.bound({ sessionID: input.sessionID, toolCallID: input.call.id, output })
       const result = ToolOutput.toResultValue(bounded.output)
       if (result.type === "error")
-        return bounded.outputPaths.length > 0 ? { result, outputPaths: bounded.outputPaths } : { result }
+        return bounded.outputPaths.length > 0 ? { result, outputPaths: bounded.outputPaths, ...(rawBytes !== undefined ? { rawBytes } : {}) } : { result, ...(rawBytes !== undefined ? { rawBytes } : {}) }
       return bounded.outputPaths.length > 0
-        ? { result, output: bounded.output, outputPaths: bounded.outputPaths }
-        : { result, output: bounded.output }
+        ? { result, output: bounded.output, outputPaths: bounded.outputPaths, ...(rawBytes !== undefined ? { rawBytes } : {}) }
+        : { result, output: bounded.output, ...(rawBytes !== undefined ? { rawBytes } : {}) }
     })
 
     return Service.of({

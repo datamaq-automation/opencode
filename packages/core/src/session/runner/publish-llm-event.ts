@@ -379,9 +379,10 @@ export const createLLMEventPublisher = (events: EventV2.Interface, input: Input)
           .map((c) => (typeof c === "object" && "text" in c ? c.text : JSON.stringify(c)))
           .join("")
         const prunedBytes = Buffer.byteLength(contentStr, "utf-8")
-        const rawBytes = tool.rawContent ? Buffer.byteLength(tool.rawContent, "utf-8") : prunedBytes
-        const rawTokens = tool.rawContent ? Token.estimate(tool.rawContent) : Token.estimate(contentStr)
-        const tokensSaved = Math.max(0, rawTokens - Token.estimate(contentStr))
+        const rawBytes = event.metadata?.rawBytes as number | undefined ?? (tool.rawContent ? Buffer.byteLength(tool.rawContent, "utf-8") : prunedBytes)
+        const prunedTokens = Token.estimate(contentStr)
+        const rawTokens = tool.rawContent ? Token.estimate(tool.rawContent) : Math.ceil(rawBytes / 4)
+        const tokensSaved = Math.max(0, rawTokens - prunedTokens)
 
         yield* events.publish(SessionEvent.Tool.Telemetry, {
           sessionID: input.sessionID,

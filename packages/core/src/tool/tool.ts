@@ -110,20 +110,26 @@ export function make<
                 ),
               ),
             ),
-            Effect.map(({ output, structured }) => ({
-              structured,
-              content:
-                config.toModelOutput?.({ input, output }).map((part) =>
-                  part.type === "text"
-                    ? { type: "text" as const, text: part.text }
-                    : {
-                        type: "file" as const,
-                        uri: `data:${part.mime};base64,${part.data}`,
-                        mime: part.mime,
-                        name: part.name,
-                      },
-                ) ?? (typeof output === "string" ? [{ type: "text" as const, text: output }] : []),
-            })),
+            Effect.map(({ output, structured }) => {
+              const result: any = {
+                structured,
+                content:
+                  config.toModelOutput?.({ input, output }).map((part) =>
+                    part.type === "text"
+                      ? { type: "text" as const, text: part.text }
+                      : {
+                          type: "file" as const,
+                          uri: `data:${part.mime};base64,${part.data}`,
+                          mime: part.mime,
+                          name: part.name,
+                        },
+                  ) ?? (typeof output === "string" ? [{ type: "text" as const, text: output }] : []),
+              }
+              if (typeof output === "object" && output !== null && "_rawBytes" in output) {
+                result.rawBytes = (output as any)._rawBytes
+              }
+              return result
+            }),
           ),
         ),
       ),

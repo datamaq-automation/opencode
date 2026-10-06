@@ -167,6 +167,7 @@ export const ToolResult = Schema.Struct({
   output: Schema.optional(ToolOutput),
   providerExecuted: Schema.optional(Schema.Boolean),
   providerMetadata: Schema.optional(ProviderMetadata),
+  metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 }).annotate({ identifier: "LLM.Event.ToolResult" })
 export type ToolResult = Schema.Schema.Type<typeof ToolResult>
 

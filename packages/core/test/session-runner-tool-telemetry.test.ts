@@ -62,6 +62,10 @@ test("publishes telemetry on tool success with token metrics", async () => {
     )
   )
 
+  // Simulate raw (unp pruned) output much larger than the pruned version
+  const prunedOutput = largeOutput.slice(0, 100)
+  const rawBytes = Buffer.byteLength(largeOutput, "utf-8")
+
   await Effect.runPromise(
     publisher.publish(
       LLMEvent.toolResult({
@@ -69,12 +73,13 @@ test("publishes telemetry on tool success with token metrics", async () => {
         name: "read",
         result: {
           type: "content",
-          value: [{ type: "text", text: largeOutput }],
+          value: [{ type: "text", text: prunedOutput }],
         },
         output: {
           structured: { type: "text" },
-          content: [{ type: "text", text: largeOutput }],
+          content: [{ type: "text", text: prunedOutput }],
         },
+        metadata: { rawBytes },
       })
     )
   )
@@ -90,8 +95,8 @@ test("publishes telemetry on tool success with token metrics", async () => {
   expect(tel).toBeDefined()
   expect(tel.prunedBytes).toBeGreaterThan(0)
   expect(tel.rawTokens).toBeGreaterThan(0)
-  expect(tel.tokensSaved).toBeGreaterThanOrEqual(0)
-  expect(tel.rawBytes).toBeGreaterThanOrEqual(tel.prunedBytes)
+  expect(tel.tokensSaved).toBeGreaterThan(0)
+  expect(tel.rawBytes).toBeGreaterThan(tel.prunedBytes)
 })
 
 test("calculates zero tokens saved when no pruning occurs", async () => {

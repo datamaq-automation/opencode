@@ -185,6 +185,7 @@ const layer = Layer.effectDiscard(
               }
 
               const raw = result.output?.toString("utf8") || "(no output)"
+              const rawBytes = Buffer.byteLength(raw, "utf-8")
               const pruned = TerminalPruner.prune(raw, { command: input.command })
               const notice = result.outputTruncated
                 ? "[output capture truncated at the in-memory safety limit]"
@@ -194,6 +195,7 @@ const layer = Layer.effectDiscard(
                 exit: result.exitCode,
                 output,
                 truncated: result.outputTruncated === true || pruned.pruned,
+                _rawBytes: rawBytes,
                 ...(warnings.length ? { warnings } : {}),
               }
             }).pipe(Effect.mapError(() => new ToolFailure({ message: `Unable to execute command: ${input.command}` }))),
