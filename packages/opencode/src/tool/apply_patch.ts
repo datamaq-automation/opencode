@@ -1,5 +1,5 @@
 import * as path from "path"
-import { Effect, Schema } from "effect"
+import { Effect, Schema, Option } from "effect"
 import * as Tool from "./tool"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Watcher } from "@opencode-ai/core/filesystem/watcher"
@@ -14,6 +14,7 @@ import DESCRIPTION from "./apply_patch.txt"
 import { FileSystem } from "@opencode-ai/core/filesystem"
 import { Format } from "../format"
 import * as Bom from "@/util/bom"
+import { SyntaxValidator } from "../syntax"
 
 export const Parameters = Schema.Struct({
   patchText: Schema.String.annotate({ description: "The full patch text that describes all changes to be made" }),
@@ -26,6 +27,7 @@ export const ApplyPatchTool = Tool.define(
     const afs = yield* FSUtil.Service
     const format = yield* Format.Service
     const events = yield* EventV2Bridge.Service
+    const syntax = yield* Effect.serviceOption(SyntaxValidator.Service)
 
     const run = Effect.fn("ApplyPatchTool.execute")(function* (
       params: Schema.Schema.Type<typeof Parameters>,
@@ -220,21 +222,58 @@ export const ApplyPatchTool = Tool.define(
       for (const change of fileChanges) {
         const edited = change.type === "delete" ? undefined : (change.movePath ?? change.filePath)
         switch (change.type) {
-          case "add":
+          case "add": {
             // Create parent directories (recursive: true is safe on existing/root dirs)
+
+            if (Option.isSome(syntax) && syntax.value.supports(change.filePath)) {
+              const newValidation = yield* syntax.value.validate(change.filePath, change.newContent)
+              if (!newValidation.valid) {
+                return yield* Effect.fail(
+                  new Error(
+                    `Syntax validation failed for ${path.basename(change.filePath)}: cannot create file with invalid syntax.\n${syntax.value.formatReport(change.filePath, newValidation.errors)}`,
+                  ),
+                )
+              }
+            }
 
             yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
             updates.push({ file: change.filePath, event: "add" })
             break
+          }
 
-          case "update":
+          case "update": {
+            if (Option.isSome(syntax) && syntax.value.supports(change.filePath)) {
+              const oldValidation = yield* syntax.value.validate(change.filePath, change.oldContent)
+              const newValidation = yield* syntax.value.validate(change.filePath, change.newContent)
+              if (oldValidation.valid && !newValidation.valid) {
+                return yield* Effect.fail(
+                  new Error(
+                    `Syntax validation failed for ${path.basename(change.filePath)}: changes would create invalid syntax.\n${syntax.value.formatReport(change.filePath, newValidation.errors)}`,
+                  ),
+                )
+              }
+            }
+
             yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
             updates.push({ file: change.filePath, event: "change" })
             break
+          }
 
-          case "move":
+          case "move": {
             if (change.movePath) {
               // Create parent directories (recursive: true is safe on existing/root dirs)
+
+              if (Option.isSome(syntax) && syntax.value.supports(change.movePath)) {
+                const oldValidation = yield* syntax.value.validate(change.filePath, change.oldContent)
+                const newValidation = yield* syntax.value.validate(change.movePath, change.newContent)
+                if (oldValidation.valid && !newValidation.valid) {
+                  return yield* Effect.fail(
+                    new Error(
+                      `Syntax validation failed for ${path.basename(change.movePath)}: changes would create invalid syntax.\n${syntax.value.formatReport(change.movePath, newValidation.errors)}`,
+                    ),
+                  )
+                }
+              }
 
               yield* afs.writeWithDirs(change.movePath!, Bom.join(change.newContent, change.bom))
               yield* afs.remove(change.filePath)
@@ -242,6 +281,7 @@ export const ApplyPatchTool = Tool.define(
               updates.push({ file: change.movePath, event: "add" })
             }
             break
+          }
 
           case "delete":
             yield* afs.remove(change.filePath)

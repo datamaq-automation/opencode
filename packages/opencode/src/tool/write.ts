@@ -1,4 +1,4 @@
-import { Schema } from "effect"
+import { Schema, Option } from "effect"
 import * as path from "path"
 import { Effect } from "effect"
 import * as Tool from "./tool"
@@ -14,6 +14,7 @@ import { InstanceState } from "@/effect/instance-state"
 import { trimDiff } from "./edit"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import * as Bom from "@/util/bom"
+import { SyntaxValidator } from "../syntax"
 
 const MAX_PROJECT_DIAGNOSTICS_FILES = 5
 
@@ -31,6 +32,7 @@ export const WriteTool = Tool.define(
     const fs = yield* FSUtil.Service
     const events = yield* EventV2Bridge.Service
     const format = yield* Format.Service
+    const syntax = yield* Effect.serviceOption(SyntaxValidator.Service)
 
     return {
       description: DESCRIPTION,
@@ -60,6 +62,16 @@ export const WriteTool = Tool.define(
               diff,
             },
           })
+
+          if (Option.isSome(syntax) && syntax.value.supports(filepath)) {
+            const oldValidation = yield* syntax.value.validate(filepath, contentOld)
+            const newValidation = yield* syntax.value.validate(filepath, contentNew)
+            if (oldValidation.valid && !newValidation.valid) {
+              throw new Error(
+                `Syntax validation failed: changes would create invalid syntax.\n${syntax.value.formatReport(filepath, newValidation.errors)}`,
+              )
+            }
+          }
 
           yield* fs.writeWithDirs(filepath, Bom.join(contentNew, desiredBom))
           if (yield* format.file(filepath)) {

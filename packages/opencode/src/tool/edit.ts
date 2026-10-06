@@ -110,6 +110,17 @@ export const EditTool = Tool.define(
                     diff,
                   },
                 })
+
+                if (Option.isSome(syntax) && syntax.value.supports(filePath)) {
+                  const oldValidation = yield* syntax.value.validate(filePath, contentOld)
+                  const newValidation = yield* syntax.value.validate(filePath, contentNew)
+                  if (oldValidation.valid && !newValidation.valid) {
+                    throw new Error(
+                      `Syntax validation failed: changes would create invalid syntax.\n${syntax.value.formatReport(filePath, newValidation.errors)}`,
+                    )
+                  }
+                }
+
                 yield* afs.writeWithDirs(filePath, Bom.join(contentNew, desiredBom))
                 if (yield* format.file(filePath)) {
                   contentNew = yield* Bom.syncFile(afs, filePath, desiredBom)
@@ -153,6 +164,16 @@ export const EditTool = Tool.define(
                   diff,
                 },
               })
+
+              if (Option.isSome(syntax) && syntax.value.supports(filePath)) {
+                const oldValidation = yield* syntax.value.validate(filePath, contentOld)
+                const newValidation = yield* syntax.value.validate(filePath, contentNew)
+                if (oldValidation.valid && !newValidation.valid) {
+                  throw new Error(
+                    `Syntax validation failed: changes would create invalid syntax.\n${syntax.value.formatReport(filePath, newValidation.errors)}`,
+                  )
+                }
+              }
 
               yield* afs.writeWithDirs(filePath, Bom.join(contentNew, desiredBom))
               if (yield* format.file(filePath)) {
