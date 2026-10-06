@@ -1197,6 +1197,25 @@ describe("tool.shell truncation", () => {
     ),
   )
 
+  it.live("drains output that is still buffered when the process exits", () =>
+    runIn(
+      projectRoot,
+      Effect.gen(function* () {
+        // A slow metadata sink (the real one persists the part on every chunk) makes the reader fall behind the
+        // process, which exits with most of its output still unread in the pipe.
+        const result = yield* run(
+          {
+            command: `for i in $(seq 1 200); do echo "✓ suite > test_$i passed [1ms]"; done; echo "FAIL: suite > critical_failure"`,
+          },
+          { ...ctx, metadata: () => Effect.sleep("20 millis") },
+        )
+        expect(result.output).toContain("test_200 passed")
+        expect(result.output).toContain("critical_failure")
+        expect((result.metadata as { telemetry?: unknown }).telemetry).toBeDefined()
+      }),
+    ),
+  )
+
   it.live("prunes noisy test output while preserving full raw log on disk", () =>
     runIn(
       projectRoot,

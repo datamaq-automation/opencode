@@ -11,6 +11,8 @@ import { GrepTool } from "./grep"
 import { SemanticSearchTool } from "./semantic-search"
 import { SemanticEmbedder } from "@opencode-ai/core/semantic/embedder"
 import { SemanticCache } from "@opencode-ai/core/semantic/cache"
+import { Skeleton } from "@/skeleton"
+import { SyntaxValidator } from "@/syntax"
 import { ReadTool } from "./read"
 import { TaskTool } from "./task"
 import { Database } from "@opencode-ai/core/database/database"
@@ -457,6 +459,10 @@ export const node = LayerNode.make({
     Ripgrep.node,
     SemanticEmbedder.node,
     SemanticCache.node,
+    // Optional services: read, edit, write and apply_patch resolve these with Effect.serviceOption,
+    // so leaving them out silently disables skeleton views and pre-write syntax validation.
+    Skeleton.node,
+    SyntaxValidator.node,
   ],
 })
 

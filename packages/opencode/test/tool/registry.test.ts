@@ -462,6 +462,32 @@ describe("tool.registry", () => {
     }),
   )
 
+  it.instance("read tool auto-enables the skeleton view for large files", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const file = path.join(test.directory, "large.ts")
+      yield* Effect.promise(() =>
+        Bun.write(
+          file,
+          Array.from({ length: 250 }, (_, i) => `export function fn${i}(): number {\n  return ${i}\n}`).join("\n"),
+        ),
+      )
+      const registry = yield* ToolRegistry.Service
+      const read = (yield* registry.all()).find((tool) => tool.id === "read")
+      if (!read) throw new Error("read tool was not loaded")
+      const agents = yield* Agent.Service
+      const result = yield* read.execute({ filePath: file }, {
+        sessionID: SessionID.make("ses_test"),
+        messageID: MessageID.make("msg_test"),
+        agent: (yield* agents.defaultInfo()).name,
+        abort: new AbortController().signal,
+        messages: [],
+        metadata: () => Effect.void,
+        ask: () => Effect.void,
+      } satisfies Tool.Context)
+      expect(result.output).toContain("<view>skeleton</view>")
+    }),
+  )
   it.instance("loads legacy JSON-schema-shaped custom tools with wire schema", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
