@@ -5,6 +5,7 @@ import { ModelV2 } from "../../model"
 import { SessionEvent } from "../event"
 import { SessionMessage } from "../message"
 import { SessionSchema } from "../schema"
+import { Token } from "../../util/token"
 
 type Input = {
   readonly sessionID: SessionSchema.ID
@@ -62,6 +63,7 @@ export const createLLMEventPublisher = (events: EventV2.Interface, input: Input)
       settled: boolean
       providerExecuted: boolean
       providerMetadata?: ProviderMetadata
+      rawContent?: string
     }
   >()
   const timestamp = DateTime.now
@@ -370,6 +372,29 @@ export const createLLMEventPublisher = (events: EventV2.Interface, input: Input)
           outputPaths,
           ...(provider.executed ? { result: event.result } : {}),
           provider,
+        })
+
+        // Publish telemetry metrics
+        const contentStr = result.content
+          .map((c) => (typeof c === "object" && "text" in c ? c.text : JSON.stringify(c)))
+          .join("")
+        const prunedBytes = Buffer.byteLength(contentStr, "utf-8")
+        const rawBytes = tool.rawContent ? Buffer.byteLength(tool.rawContent, "utf-8") : prunedBytes
+        const rawTokens = tool.rawContent ? Token.estimate(tool.rawContent) : Token.estimate(contentStr)
+        const tokensSaved = Math.max(0, rawTokens - Token.estimate(contentStr))
+
+        yield* events.publish(SessionEvent.Tool.Telemetry, {
+          sessionID: input.sessionID,
+          timestamp: yield* timestamp,
+          assistantMessageID: tool.assistantMessageID,
+          callID: event.id,
+          name: tool.name,
+          telemetry: {
+            rawBytes,
+            prunedBytes,
+            rawTokens,
+            tokensSaved,
+          },
         })
         return
       }
