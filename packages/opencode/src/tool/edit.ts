@@ -28,6 +28,17 @@ function detectLineEnding(text: string): "\n" | "\r\n" {
   return text.includes("\r\n") ? "\r\n" : "\n"
 }
 
+const MAX_DIFF_BYTES = 2048
+export function compactLargeDiff(diff: string): string {
+  if (Buffer.byteLength(diff, "utf-8") <= MAX_DIFF_BYTES) {
+    return diff
+  }
+  const lines = diff.split("\n")
+  const additions = lines.filter((l) => l.startsWith("+")).length
+  const deletions = lines.filter((l) => l.startsWith("-")).length
+  return `[Diff too large (${Buffer.byteLength(diff, "utf-8")} bytes). Summary: +${additions} lines, -${deletions} lines]`
+}
+
 function convertToLineEnding(text: string, ending: "\n" | "\r\n"): string {
   if (ending === "\n") return text
   return text.replaceAll("\n", "\r\n")
@@ -235,7 +246,7 @@ export const EditTool = Tool.define(
           return {
             metadata: {
               diagnostics,
-              diff,
+              diff: compactLargeDiff(diff),
               filediff,
               syntaxErrors,
             },
