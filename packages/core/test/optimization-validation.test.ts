@@ -77,6 +77,25 @@ test("terminal-pruning: preserve error lines (never deduplicate)", () => {
   expect(lineCount).toBeGreaterThanOrEqual(3)
 })
 
+test("terminal-pruning: never prunes content the command asked to view", () => {
+  const output = Array.from({ length: 300 }, (_, i) => `line ${i}`).join("\n")
+  const commands = ["cat src/index.ts", "cd pkg && sed -n '1,300p' a.ts", "FOO=1 /usr/bin/head -300 a.ts", "git diff HEAD~1"]
+
+  for (const command of commands) {
+    const result = TerminalPruner.prune(output, { maxLines: 80, command })
+    expect(result.pruned).toBe(false)
+    expect(result.content).toBe(output)
+  }
+})
+
+test("terminal-pruning: still prunes noisy commands", () => {
+  const output = Array.from({ length: 300 }, (_, i) => `line ${i}`).join("\n")
+
+  expect(TerminalPruner.prune(output, { maxLines: 80, command: "bun run build" }).pruned).toBe(true)
+  expect(TerminalPruner.prune(output, { maxLines: 80, command: "git status" }).pruned).toBe(true)
+  expect(TerminalPruner.prune(output, { maxLines: 80, command: "cat log.txt | bun run analyze" }).pruned).toBe(true)
+})
+
 test("terminal-pruning: collapse >5 repeated lines", () => {
   const repeated = Array(10)
     .fill("Building module...")

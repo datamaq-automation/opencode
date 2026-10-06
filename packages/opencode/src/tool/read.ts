@@ -37,7 +37,7 @@ export const Parameters = Schema.Struct({
   }),
   view: Schema.optional(Schema.Literals(["full", "skeleton"])).annotate({
     description:
-      "When set to 'skeleton', extracts interfaces, types and function/method signatures, omitting implementation bodies. Recommended for large files to save tokens.",
+      "When set to 'skeleton', extracts interfaces, types and function/method signatures, omitting implementation bodies. Recommended for large files to save tokens. Code files of 200+ lines default to 'skeleton' when offset and limit are omitted; set 'full' to get their complete contents.",
   }),
 })
 
@@ -351,7 +351,7 @@ export const ReadTool = Tool.define<
       }
 
       const shouldAutoSkeleton = () => {
-        if (params.offset !== undefined || params.limit !== undefined) return false
+        if (params.view === "full" || params.offset !== undefined || params.limit !== undefined) return false
         if (!Option.isSome(skeleton) || !skeleton.value.supports(filepath)) return false
         return true
       }
@@ -421,7 +421,7 @@ export const ReadTool = Tool.define<
             "<content>\n",
           ].join("\n")
           output += rawLines.map((line: string, i: number) => `${i + 1}: ${line}`).join("\n")
-          output += `\n\n(Showing skeleton outline: ${pruned.skeletonLines} lines vs original ${pruned.originalLines} lines)`
+          output += `\n\n(Showing skeleton outline: ${pruned.skeletonLines} lines vs original ${pruned.originalLines} lines. To see implementations, read again with view="full" or with offset/limit for a section.)`
           output += "\n</content>"
 
           yield* warm(filepath)

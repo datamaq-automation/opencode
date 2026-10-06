@@ -46,6 +46,21 @@ const VERBOSE_PATTERNS = [
   /^\s*\d+% progress/i,
 ]
 
+// Commands whose output is content the model explicitly asked to see, not log noise.
+const VIEW_COMMANDS = new Set(["cat", "bat", "batcat", "head", "tail", "nl", "less", "more", "sed", "awk", "jq"])
+const VIEW_GIT_SUBCOMMANDS = new Set(["show", "diff", "blame"])
+
+// Judged on the last stage of the command line, since that stage produces the output.
+const isViewCommand = (command: string) => {
+  const words = (command.split(/&&|\|\||;|\|/).at(-1) ?? "").trim().split(/\s+/)
+  // Skip leading environment assignments such as `FOO=1 cat file`.
+  const start = words.findIndex((word) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word))
+  if (start === -1) return false
+  const program = words.at(start)?.split("/").at(-1) ?? ""
+  if (program === "git") return VIEW_GIT_SUBCOMMANDS.has(words.at(start + 1) ?? "")
+  return VIEW_COMMANDS.has(program)
+}
+
 const isPassLine = (line: string) => PASS_PATTERNS.some((pattern) => pattern.test(line))
 const isFailLine = (line: string) => FAIL_PATTERNS.some((pattern) => pattern.test(line))
 const isVerboseLine = (line: string) => VERBOSE_PATTERNS.some((pattern) => pattern.test(line))
@@ -94,6 +109,9 @@ const deduplicateConsecutive = (lines: string[]): { lines: string[]; deduped: nu
 export const prune = (output: string, options?: PruneOptions): PruneResult => {
   const maxLines = options?.maxLines ?? DEFAULT_MAX_LINES
   const lines = output.split("\n")
+  if (options?.command && isViewCommand(options.command)) {
+    return { content: output, pruned: false, originalLines: lines.length, keptLines: lines.length, prunedLines: 0 }
+  }
 
   // Deduplicate consecutive lines (except error lines)
   const { lines: dedupedLines, deduped: dedupedCount } = deduplicateConsecutive(lines)
