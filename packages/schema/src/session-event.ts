@@ -370,6 +370,22 @@ export namespace Tool {
     },
   })
   export type Failed = typeof Failed.Type
+
+  export const Telemetry = Event.define({
+    type: "session.next.tool.telemetry",
+    ...options,
+    schema: {
+      ...ToolBase,
+      name: Schema.String,
+      telemetry: Schema.Struct({
+        rawBytes: NonNegativeInt,
+        prunedBytes: NonNegativeInt,
+        rawTokens: NonNegativeInt,
+        tokensSaved: NonNegativeInt,
+      }),
+    },
+  })
+  export type Telemetry = typeof Telemetry.Type
 }
 
 export const RetryError = Schema.Struct({
