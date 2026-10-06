@@ -1210,6 +1210,9 @@ describe("tool.shell truncation", () => {
         expect(result.output).toContain("critical_failure")
         expect(result.output).toContain("at test_fn (/app/test.ts:42:10)")
         expect(result.output).toContain("pruned 190 passing tests")
+        const telemetry = (result.metadata as { telemetry?: { rawBytes: number; rawTokens: number } }).telemetry
+        expect(telemetry?.rawBytes).toBeGreaterThan(Buffer.byteLength(result.output, "utf-8"))
+        expect(telemetry?.rawTokens).toBeGreaterThan(0)
 
         const filepath = (result.metadata as { outputPath?: string }).outputPath
         expect(filepath).toBeTruthy()

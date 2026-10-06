@@ -17,6 +17,7 @@ import { ShellID } from "./shell/id"
 
 import * as Truncate from "./truncate"
 import { TerminalPruner } from "@opencode-ai/core/util/terminal-pruner"
+import { Token } from "@/util/token"
 import { Plugin } from "@/plugin"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
@@ -579,6 +580,8 @@ export const ShellTool = Tool.define(
           file = yield* trunc.write(raw)
         }
       }
+      // Savings are measured against what plain tail truncation would have sent, not the full raw output.
+      const unpruned = pruneResult.pruned ? tail(raw, limits.maxLines, limits.maxBytes).text : undefined
 
       const effectiveText = pruneResult.pruned ? pruneResult.content : raw
       const end = tail(effectiveText, limits.maxLines, limits.maxBytes)
@@ -604,6 +607,14 @@ export const ShellTool = Tool.define(
           exit: code,
           truncated: cut,
           ...(cut && file ? { outputPath: file } : {}),
+          ...(unpruned === undefined
+            ? {}
+            : {
+                telemetry: {
+                  rawBytes: Buffer.byteLength(unpruned, "utf-8"),
+                  rawTokens: Token.estimate(unpruned),
+                },
+              }),
         },
         output,
       }

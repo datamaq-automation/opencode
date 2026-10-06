@@ -173,6 +173,7 @@ const layer = Layer.effect(
         const estimatedTokens = Token.estimate(output.output)
         const telemetry = {
           chars: charCount,
+          bytes: Buffer.byteLength(output.output, "utf-8"),
           estimatedTokens,
           ...output.metadata?.telemetry,
         }

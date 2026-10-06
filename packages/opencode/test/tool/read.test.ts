@@ -662,6 +662,8 @@ export class Service {
       expect(result.output).toContain("export interface User")
       expect(result.output).toContain("process(data: string): boolean { /* body omitted */ }")
       expect(result.output).not.toContain("const a = 1")
+      expect(result.metadata.telemetry?.rawBytes).toBe(Buffer.byteLength(code, "utf-8"))
+      expect(result.metadata.telemetry?.chars).toBe(result.output.length)
     }),
   )
 

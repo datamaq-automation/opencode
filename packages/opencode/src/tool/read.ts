@@ -69,6 +69,9 @@ type Metadata = {
     chars: number
     lines?: number
     estimatedTokens: number
+    // Size of what a plain read would have sent, present only when the output was pruned.
+    rawBytes?: number
+    rawTokens?: number
   }
 }
 
@@ -383,6 +386,13 @@ export const ReadTool = Tool.define<
               preview: rawLines.slice(0, 20).join("\n"),
               truncated: false,
               loaded: loaded.map((item) => item.filepath),
+              telemetry: {
+                chars: output.length,
+                lines: rawLines.length,
+                estimatedTokens: Token.estimate(output),
+                rawBytes: Buffer.byteLength(content, "utf-8"),
+                rawTokens: Token.estimate(content),
+              },
               display: {
                 type: "file" as const,
                 path: filepath,
@@ -427,6 +437,13 @@ export const ReadTool = Tool.define<
               preview: rawLines.slice(0, 20).join("\n"),
               truncated: false,
               loaded: loaded.map((item) => item.filepath),
+              telemetry: {
+                chars: output.length,
+                lines: rawLines.length,
+                estimatedTokens: Token.estimate(output),
+                rawBytes: Buffer.byteLength(file.raw.join("\n"), "utf-8"),
+                rawTokens: Token.estimate(file.raw.join("\n")),
+              },
               display: {
                 type: "file" as const,
                 path: filepath,

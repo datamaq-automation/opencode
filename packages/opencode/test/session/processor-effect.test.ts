@@ -862,7 +862,10 @@ it.live("session.processor effect tests complete AI SDK tool calls when native f
         expect(call.state.input).toEqual({ query: "weather" })
         expect(call.state.output).toBe("result:weather")
         expect(call.state.title).toBe("Weather lookup")
-        expect(call.state.metadata).toEqual({ source: "test" })
+        expect(call.state.metadata).toEqual({
+          source: "test",
+          telemetry: { chars: 14, bytes: 14, estimatedTokens: expect.any(Number) },
+        })
         expect(call.state.time.start).toBeDefined()
         expect(call.state.time.end).toBeDefined()
       }),
