@@ -1209,7 +1209,8 @@ describe("tool.shell truncation", () => {
           },
           { ...ctx, metadata: () => Effect.sleep("20 millis") },
         )
-        expect(result.output).toContain("test_200 passed")
+        // The marker counts every passing line, so it proves the whole output was read.
+        expect(result.output).toContain("pruned 200 passing tests")
         expect(result.output).toContain("critical_failure")
         expect((result.metadata as { telemetry?: unknown }).telemetry).toBeDefined()
       }),
@@ -1242,7 +1243,7 @@ describe("tool.shell truncation", () => {
         mustTruncate(result)
         expect(result.output).toContain("critical_failure")
         expect(result.output).toContain("at test_fn (/app/test.ts:42:10)")
-        expect(result.output).toContain("pruned 190 passing tests")
+        expect(result.output).toContain("pruned 200 passing tests")
         const telemetry = (result.metadata as { telemetry?: { rawBytes: number; rawTokens: number } }).telemetry
         expect(telemetry?.rawBytes).toBeGreaterThan(Buffer.byteLength(result.output, "utf-8"))
         expect(telemetry?.rawTokens).toBeGreaterThan(0)

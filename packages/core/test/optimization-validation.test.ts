@@ -55,12 +55,12 @@ test("skeleton: don't auto-activate when offset or limit specified", () => {
 
 // ===== TERMINAL PRUNING TESTS =====
 test("terminal-pruning: deduplicate consecutive identical lines", () => {
-  const output = ["added 10 packages", "added 10 packages", "added 10 packages", "done"].join("\n")
+  const output = [...Array(8).fill("added 10 packages"), "done"].join("\n")
   const result = TerminalPruner.prune(output, { maxLines: 100 })
 
   // Should deduplicate the repeated "added 10 packages"
   expect(result.pruned).toBe(true)
-  expect(result.originalLines).toBe(4)
+  expect(result.originalLines).toBe(9)
   expect(result.prunedLines).toBeGreaterThan(0)
 })
 
@@ -89,7 +89,7 @@ test("terminal-pruning: never prunes content the command asked to view", () => {
 })
 
 test("terminal-pruning: still prunes noisy commands", () => {
-  const output = Array.from({ length: 300 }, (_, i) => `line ${i}`).join("\n")
+  const output = Array.from({ length: 300 }, (_, i) => `✓ suite > case ${i} [1ms]`).join("\n")
 
   expect(TerminalPruner.prune(output, { maxLines: 80, command: "bun run build" }).pruned).toBe(true)
   expect(TerminalPruner.prune(output, { maxLines: 80, command: "git status" }).pruned).toBe(true)
@@ -119,19 +119,19 @@ test("terminal-pruning: keep ≤5 duplicates as-is", () => {
 
 test("terminal-pruning: preserve failures with context", () => {
   const output = [
-    "test 1 ... PASS",
-    "test 2 ... PASS",
-    "test 3 ... FAIL",
+    ...Array.from({ length: 10 }, (_, i) => `✓ case ${i} [1ms]`),
+    "✗ case 10 [1ms]",
     "  Error: assertion failed",
     "  at line 42",
-    "test 4 ... PASS",
-    "test 5 ... PASS",
+    ...Array.from({ length: 10 }, (_, i) => `✓ case ${i + 11} [1ms]`),
   ].join("\n")
 
   const result = TerminalPruner.prune(output, { maxLines: 5 })
 
-  expect(result.content).toContain("FAIL")
+  expect(result.content).toContain("✗ case 10")
   expect(result.content).toContain("assertion failed")
+  expect(result.content).toContain("at line 42")
+  expect(result.content).toContain("pruned 10 passing tests")
   expect(result.pruned).toBe(true)
 })
 

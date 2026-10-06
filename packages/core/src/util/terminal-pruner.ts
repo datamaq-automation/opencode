@@ -65,16 +65,14 @@ const isPassLine = (line: string) => PASS_PATTERNS.some((pattern) => pattern.tes
 const isFailLine = (line: string) => FAIL_PATTERNS.some((pattern) => pattern.test(line))
 const isVerboseLine = (line: string) => VERBOSE_PATTERNS.some((pattern) => pattern.test(line))
 
-const deduplicateConsecutive = (lines: string[]): { lines: string[]; deduped: number } => {
+const deduplicateConsecutive = (lines: string[]): string[] => {
   const result: string[] = []
-  let deduped = 0
   let lastLine = ""
   let duplicateCount = 0
 
   for (const line of lines) {
     if (line === lastLine && !isFailLine(line)) {
       duplicateCount++
-      deduped++
       continue
     }
 
@@ -103,7 +101,7 @@ const deduplicateConsecutive = (lines: string[]): { lines: string[]; deduped: nu
     }
   }
 
-  return { lines: result, deduped }
+  return result
 }
 
 export const prune = (output: string, options?: PruneOptions): PruneResult => {
@@ -114,104 +112,38 @@ export const prune = (output: string, options?: PruneOptions): PruneResult => {
   }
 
   // Deduplicate consecutive lines (except error lines)
-  const { lines: dedupedLines, deduped: dedupedCount } = deduplicateConsecutive(lines)
-
-  if (dedupedLines.length <= maxLines) {
-    return {
-      content: dedupedLines.join("\n"),
-      pruned: dedupedCount > 0,
-      originalLines: lines.length,
-      keptLines: dedupedLines.length,
-      prunedLines: dedupedCount,
-    }
-  }
-
-  const failIndices = dedupedLines.reduce<number[]>((acc, line, idx) => {
-    if (isFailLine(line)) acc.push(idx)
-    return acc
-  }, [])
-
-  // If failures exist, keep header, failure contexts, and summary footer
-  if (failIndices.length > 0) {
-    const keepMask = new Array<boolean>(dedupedLines.length).fill(false)
-
-    // Keep top 6 lines (test suite invocation / environment header)
-    const headerLines = Math.min(dedupedLines.length, 6)
-    for (let i = 0; i < headerLines; i++) keepMask[i] = true
-
-    // Keep bottom 10 lines (test summary / timing)
-    const footerStart = Math.max(0, dedupedLines.length - 10)
-    for (let i = footerStart; i < dedupedLines.length; i++) keepMask[i] = true
-
-    // For each failure, keep 2 lines before and 16 lines after (capturing stack traces/diffs)
-    failIndices.forEach((failIdx) => {
-      const start = Math.max(0, failIdx - 2)
-      const end = Math.min(dedupedLines.length, failIdx + 16)
-      for (let i = start; i < end; i++) keepMask[i] = true
-    })
-
-    const resultLines: string[] = []
-    let inPrunedGap = false
-    let currentGapCount = 0
-
-    dedupedLines.forEach((line, idx) => {
-      if (keepMask[idx]) {
-        if (inPrunedGap) {
-          resultLines.push(
-            `[... pruned ${currentGapCount} passing tests / verbose lines on local CPU (deduplicated) ...]`,
-          )
-          inPrunedGap = false
-          currentGapCount = 0
-        }
-        resultLines.push(line)
-        return
-      }
-
-      inPrunedGap = true
-      currentGapCount++
-    })
-
-    if (inPrunedGap) {
-      resultLines.push(
-        `[... pruned ${currentGapCount} passing tests / verbose lines on local CPU (deduplicated) ...]`,
-      )
-    }
-
-    return {
-      content: resultLines.join("\n"),
-      pruned: true,
-      originalLines: lines.length,
-      keptLines: resultLines.length,
-      prunedLines: lines.length - resultLines.length + dedupedCount,
-    }
-  }
-
-  // No specific failure pattern found: keep head and tail of generic large output
-  const headCount = Math.floor(maxLines * 0.45)
-  const tailCount = Math.floor(maxLines * 0.45)
-  const skippedCount = dedupedLines.length - (headCount + tailCount)
-
-  if (skippedCount <= 0) {
-    return {
-      content: dedupedLines.join("\n"),
-      pruned: dedupedCount > 0,
-      originalLines: lines.length,
-      keptLines: dedupedLines.length,
-      prunedLines: dedupedCount,
-    }
-  }
-
-  const resultLines = [
-    ...dedupedLines.slice(0, headCount),
-    `[... pruned ${skippedCount} lines on local CPU (deduplicated) ...]`,
-    ...dedupedLines.slice(dedupedLines.length - tailCount),
-  ]
-
+  const dedupedLines = deduplicateConsecutive(lines)
+  // Only test-runner and installer noise is collapsed. Cutting generic output made models re-run commands to
+  // see the missing part, which cost far more than it saved; plain truncation still happens in the shell tool.
+  const kept = dedupedLines.length <= maxLines ? dedupedLines : collapseNoise(dedupedLines)
   return {
-    content: resultLines.join("\n"),
-    pruned: true,
+    content: kept.join("\n"),
+    pruned: kept.length < lines.length,
     originalLines: lines.length,
-    keptLines: resultLines.length,
-    prunedLines: lines.length - resultLines.length,
+    keptLines: kept.length,
+    prunedLines: Math.max(0, lines.length - kept.length),
   }
+}
+
+// Replaces runs of three or more passing-test or progress lines with one marker; failures and all other lines stay.
+function collapseNoise(lines: string[]) {
+  const state = { kept: new Array<string>(), pending: new Array<string>() }
+  const flush = () => {
+    state.kept.push(
+      ...(state.pending.length >= 3
+        ? [`[... pruned ${state.pending.length} passing tests / progress lines ...]`]
+        : state.pending),
+    )
+    state.pending = []
+  }
+  lines.forEach((line) => {
+    if (isPassLine(line) || isVerboseLine(line)) {
+      state.pending.push(line)
+      return
+    }
+    flush()
+    state.kept.push(line)
+  })
+  flush()
+  return state.kept
 }

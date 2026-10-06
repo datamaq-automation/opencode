@@ -56,21 +56,18 @@ describe("TerminalPruner", () => {
     expect(result.content).toContain("1 fail")
     // Pruned passing noise
     expect(result.content).toContain("pruned")
-    expect(result.content).toContain("on local CPU ($0 tokens)")
+    expect(result.content).toContain("pruned 90 passing tests")
+    expect(result.content).toContain("pruned 30 passing tests")
     expect(result.keptLines).toBeLessThan(fullOutput.split("\n").length)
   })
 
-  test("prunes generic large output by preserving head and tail", () => {
-    const lines = Array.from({ length: 150 }, (_, i) => `log entry line ${i + 1}`)
-    const fullOutput = lines.join("\n")
+  test("leaves generic large output whole", () => {
+    const fullOutput = Array.from({ length: 150 }, (_, i) => `log entry line ${i + 1}`).join("\n")
 
     const result = TerminalPruner.prune(fullOutput, { maxLines: 40 })
 
-    expect(result.pruned).toBe(true)
-    expect(result.content).toContain("log entry line 1")
-    expect(result.content).toContain("log entry line 150")
-    expect(result.content).toContain("pruned 114 lines on local CPU ($0 tokens)")
-    expect(result.keptLines).toBeLessThan(150)
+    expect(result.pruned).toBe(false)
+    expect(result.content).toBe(fullOutput)
   })
 
   test("handles pytest output with tracebacks cleanly", () => {
