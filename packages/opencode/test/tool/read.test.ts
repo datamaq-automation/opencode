@@ -647,12 +647,23 @@ describe("tool.read telemetry metrics", () => {
 describe("tool.read skeleton view", () => {
   const large = Array.from({ length: 250 }, (_, i) => `export function fn${i}(): number {\n  return ${i}\n}`).join("\n")
 
-  it.live("auto-enables the skeleton for large code files and says how to get the full file", () =>
+  it.live("returns large code files in full unless a skeleton is requested", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped()
       yield* put(path.join(dir, "large.ts"), large)
 
       const result = yield* exec(dir, { filePath: path.join(dir, "large.ts") })
+      expect(result.output).not.toContain("<view>skeleton</view>")
+      expect(result.output).toContain("return 7")
+    }),
+  )
+
+  it.live("tells the model how to get the full file from a skeleton", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      yield* put(path.join(dir, "large.ts"), large)
+
+      const result = yield* exec(dir, { filePath: path.join(dir, "large.ts"), view: "skeleton" })
       expect(result.output).toContain("<view>skeleton</view>")
       expect(result.output).toContain('view="full"')
       expect(result.output).not.toContain("return 7")

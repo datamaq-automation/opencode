@@ -38,7 +38,7 @@ export const Parameters = Schema.Struct({
   }),
   view: Schema.optional(Schema.Literals(["full", "skeleton"])).annotate({
     description:
-      "When set to 'skeleton', extracts interfaces, types and function/method signatures, omitting implementation bodies. Recommended for large files to save tokens. Code files of 200+ lines default to 'skeleton' when offset and limit are omitted; set 'full' to get their complete contents.",
+      "When set to 'skeleton', extracts interfaces, types and function/method signatures, omitting implementation bodies. Recommended for large files to save tokens.",
   }),
 })
 
@@ -354,14 +354,6 @@ export const ReadTool = Tool.define<
         return yield* Effect.fail(new Error(`Cannot read binary file: ${filepath}`))
       }
 
-      const shouldAutoSkeleton = () => {
-        if (params.view === "full" || params.offset !== undefined || params.limit !== undefined) return false
-        if (!Option.isSome(skeleton) || !skeleton.value.supports(filepath)) return false
-        return true
-      }
-
-      const autoSkeletonThreshold = 200
-
       if (params.view === "skeleton" && Option.isSome(skeleton) && skeleton.value.supports(filepath)) {
         const content = yield* fs.readFileString(filepath)
         const pruned = yield* skeleton.value.prune(filepath, content)
@@ -374,7 +366,7 @@ export const ReadTool = Tool.define<
             "<content>\n",
           ].join("\n")
           output += rawLines.map((line, i) => `${i + 1}: ${line}`).join("\n")
-          output += `\n\n(Showing skeleton outline: ${pruned.skeletonLines} lines vs original ${pruned.originalLines} lines)`
+          output += `\n\n(Showing skeleton outline: ${pruned.skeletonLines} lines vs original ${pruned.originalLines} lines. To see implementations, read again with view="full" or with offset/limit for a section.)`
           output += "\n</content>"
 
           yield* warm(filepath)
@@ -412,55 +404,6 @@ export const ReadTool = Tool.define<
       }
 
       const file = yield* lines(filepath, { limit: params.limit ?? DEFAULT_READ_LIMIT, offset: params.offset || 1 })
-      if (file.count >= autoSkeletonThreshold && shouldAutoSkeleton() && Option.isSome(skeleton)) {
-        const content = yield* fs.readFileString(filepath)
-        const pruned = yield* skeleton.value.prune(filepath, content)
-        if (pruned.pruned) {
-          const rawLines = pruned.content.split("\n")
-          let output = [
-            `<path>${filepath}</path>`,
-            `<type>file</type>`,
-            `<view>skeleton</view>`,
-            `<reason>Auto-enabled for file with ${file.count} lines (threshold: ${autoSkeletonThreshold})</reason>`,
-            "<content>\n",
-          ].join("\n")
-          output += rawLines.map((line: string, i: number) => `${i + 1}: ${line}`).join("\n")
-          output += `\n\n(Showing skeleton outline: ${pruned.skeletonLines} lines vs original ${pruned.originalLines} lines. To see implementations, read again with view="full" or with offset/limit for a section.)`
-          output += "\n</content>"
-
-          yield* warm(filepath)
-
-          if (loaded.length > 0) {
-            output += `\n\n<system-reminder>\n${loaded.map((item) => item.content).join("\n\n")}\n</system-reminder>`
-          }
-
-          return {
-            title,
-            output,
-            metadata: {
-              preview: rawLines.slice(0, 20).join("\n"),
-              truncated: false,
-              loaded: loaded.map((item) => item.filepath),
-              telemetry: {
-                chars: output.length,
-                lines: rawLines.length,
-                estimatedTokens: Token.estimate(output),
-                rawBytes: Buffer.byteLength(file.raw.join("\n"), "utf-8"),
-                rawTokens: Token.estimate(file.raw.join("\n")),
-              },
-              display: {
-                type: "file" as const,
-                path: filepath,
-                text: pruned.content,
-                lineStart: 1,
-                lineEnd: rawLines.length,
-                totalLines: rawLines.length,
-                truncated: false,
-              },
-            },
-          }
-        }
-      }
       if (file.count < file.offset && !(file.count === 0 && file.offset === 1)) {
         return yield* Effect.fail(
           new Error(`Offset ${file.offset} is out of range for this file (${file.count} lines)`),

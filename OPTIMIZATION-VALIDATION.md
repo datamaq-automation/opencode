@@ -1,5 +1,11 @@
 # Optimization Validation Report
 
+> **Estado (2026-10-06): desactualizado.** Un A/B de punta a punta (`packages/opencode/script/bench-ab.ts`)
+> mostró que el skeleton automático y la poda genérica de la terminal aumentaban el total de tokens un ~20%,
+> porque hacían que el modelo diera pasos extra para recuperar lo recortado. Se quitaron: el skeleton ahora solo
+> se usa con `view="skeleton"` y la poda solo colapsa tests que pasan y progreso de instalación. Para medir,
+> usar `bun script/bench-ab.ts` desde `packages/opencode`.
+
 **Date**: 2026-10-06  
 **Status**: ✅ All 5 phases implemented and validated
 

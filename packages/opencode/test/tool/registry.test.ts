@@ -462,7 +462,7 @@ describe("tool.registry", () => {
     }),
   )
 
-  it.instance("read tool auto-enables the skeleton view for large files", () =>
+  it.instance("read tool can serve skeleton views", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
       const file = path.join(test.directory, "large.ts")
@@ -476,7 +476,7 @@ describe("tool.registry", () => {
       const read = (yield* registry.all()).find((tool) => tool.id === "read")
       if (!read) throw new Error("read tool was not loaded")
       const agents = yield* Agent.Service
-      const result = yield* read.execute({ filePath: file }, {
+      const result = yield* read.execute({ filePath: file, view: "skeleton" }, {
         sessionID: SessionID.make("ses_test"),
         messageID: MessageID.make("msg_test"),
         agent: (yield* agents.defaultInfo()).name,
