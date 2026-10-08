@@ -9,7 +9,7 @@ Estado de verificación de las optimizaciones de herramientas. Para el catálogo
 | Skeleton opt-in en `read` (legacy y Core V2) | `view: "skeleton"` aplica el skeleton; sin `view` devuelve el contenido completo, incluso en archivos > 800 líneas | Validado |
 | Telemetría en `/telemetry` (TUI, v1) | Tests de `session-runner-tool-telemetry` y prueba manual: `read` con skeleton reporta ahorro > 0 | Validado |
 | Poda de output de `bash` (solo ruido) | Tests de `terminal-pruner` con salida sintética | Validado en tests; no verificado con salida real de instalación |
-| Compactación de diffs (`compactLargeDiff`) | `packages/opencode/test/tool/compact-diff.test.ts` | Validado en tests, pero **no ahorra tokens del modelo**: solo afecta `metadata.diff`. El modelo recibe `part.state.output` (`packages/opencode/src/session/message-v2.ts:305`). Verificado por lectura de código. |
+| Compactación de diffs (`compactLargeDiff`, ahora en `packages/core/src/util/diff.ts`) | `packages/core/test/diff.test.ts` | Solo de visualización: el diff completo se guarda y va a los prompts de permisos; el TUI y el CLI truncan los bloques inline. **No ahorra tokens del modelo**: el modelo recibe `part.state.output` (`packages/opencode/src/session/message-v2.ts:305`). Verificado por lectura de código. |
 
 ## No verificado
 
