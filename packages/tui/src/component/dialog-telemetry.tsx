@@ -18,19 +18,10 @@ export const DialogTelemetry = () => {
       <text fg={theme.text} attributes={TextAttributes.BOLD}>
         Token Telemetry
       </text>
-      <box flexDirection="row" gap={2} flexGrow={1} minWidth={0}>
-        <box flexDirection="column" gap={1} flexGrow={1} minWidth={0}>
-          <text fg={theme.textMuted}>Tools Executed</text>
-          <text fg={theme.text}>{telemetry.stats().totalTools}</text>
-        </box>
-        <box flexDirection="column" gap={1} flexGrow={1} minWidth={0}>
-          <text fg={theme.textMuted}>Tokens Saved</text>
-          <text fg={theme.text}>{telemetry.stats().totalTokensSaved}</text>
-        </box>
-        <box flexDirection="column" gap={1} flexGrow={1} minWidth={0}>
-          <text fg={theme.textMuted}>Bytes Saved</text>
-          <text fg={theme.text}>{formatBytes(telemetry.stats().totalBytesSaved)}</text>
-        </box>
+      <box flexDirection="column">
+        <text fg={theme.textMuted}>Tools Executed: {telemetry.stats().totalTools}</text>
+        <text fg={theme.textMuted}>Tokens Saved (est.): {telemetry.stats().totalTokensSaved}</text>
+        <text fg={theme.textMuted}>Bytes Saved: {formatBytes(telemetry.stats().totalBytesSaved)}</text>
       </box>
       <text fg={theme.text} attributes={TextAttributes.BOLD}>
         By Tool
