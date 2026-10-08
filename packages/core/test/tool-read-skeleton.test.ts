@@ -131,7 +131,7 @@ export type Role = "admin" | "user"
     }),
   )
 
-  it.effect("automatically activates skeleton view when file exceeds 800 lines and pagination/view are omitted", () =>
+  it.effect("does not auto-activate skeleton for large files when view is omitted (opt-in only)", () =>
     Effect.gen(function* () {
       const { fs, files, directory } = yield* fixture
       const file = path.join(directory, "large-service.ts")
@@ -147,18 +147,11 @@ export type Role = "admin" | "user"
       const code = parts.join("\n\n") + "\n"
       yield* files.writeFileString(file, code)
 
-      // Read without options (no view, no offset, no limit)
+      // Read without options (no view, no offset, no limit) must return full content
       const result = yield* ReadToolFileSystem.read(fs, file, "large-service.ts")
 
-      expect(result).toHaveProperty("type", "text-page")
-      if ("type" in result && result.type === "text-page") {
-        expect(result.view).toBe("skeleton")
-        expect(result.content).toContain("export interface CommonConfig")
-        expect(result.content).toContain("export function handler1(param: number): string { /* body omitted */ }")
-        expect(result.content).not.toContain("const calculation =")
-        expect(result.originalLines).toBeGreaterThanOrEqual(800)
-        expect(result.skeletonLines).toBeLessThan(result.originalLines!)
-      }
+      expect("view" in result ? result.view : undefined).toBeUndefined()
+      expect("content" in result ? result.content : "").toContain("const calculation =")
     }),
   )
 

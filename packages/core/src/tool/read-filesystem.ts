@@ -12,7 +12,6 @@ import { Skeleton } from "../skeleton"
 export const MAX_READ_LINES = 2_000
 export const MAX_READ_BYTES = 50 * 1024
 export const MAX_MEDIA_INGEST_BYTES = 20 * 1024 * 1024
-export const AUTO_SKELETON_THRESHOLD_LINES = 800
 const MAX_LINE_LENGTH = 2_000
 const MAX_LINE_SUFFIX = `... (line truncated to ${MAX_LINE_LENGTH} chars)`
 
@@ -268,10 +267,7 @@ export const read = Effect.fn("ReadTool.read")(function* (
         }
         return true
       }
-      const shouldCheckSkeleton =
-        page.view === "skeleton" ||
-        (page.view === undefined && page.offset === undefined && page.limit === undefined && info.size >= 800)
-      if (shouldCheckSkeleton) {
+      if (page.view === "skeleton") {
         const skeletonOpt = yield* Effect.serviceOption(Skeleton.Service)
         if (Option.isSome(skeletonOpt) && skeletonOpt.value.supports(real)) {
           if (binary(resource, first)) return yield* Effect.fail(new BinaryFileError({ resource }))
@@ -283,23 +279,18 @@ export const read = Effect.fn("ReadTool.read")(function* (
           }
           text.push(yield* decodeUtf8(resource, decoder))
           const fullContent = text.join("")
-          const lineCount = (fullContent.match(/\n/g)?.length ?? 0) + 1
-          const isExplicitSkeleton = page.view === "skeleton"
-          const isAutoSkeleton = page.view === undefined && lineCount >= AUTO_SKELETON_THRESHOLD_LINES
-          if (isExplicitSkeleton || isAutoSkeleton) {
-            const pruned = yield* skeletonOpt.value.prune(real, fullContent)
-            if (pruned.pruned) {
-              return new TextPage({
-                type: "text-page",
-                content: pruned.content,
-                mime: FSUtil.mimeType(real),
-                offset: 1,
-                truncated: false,
-                view: "skeleton",
-                originalLines: pruned.originalLines,
-                skeletonLines: pruned.skeletonLines,
-              })
-            }
+          const pruned = yield* skeletonOpt.value.prune(real, fullContent)
+          if (pruned.pruned) {
+            return new TextPage({
+              type: "text-page",
+              content: pruned.content,
+              mime: FSUtil.mimeType(real),
+              offset: 1,
+              truncated: false,
+              view: "skeleton",
+              originalLines: pruned.originalLines,
+              skeletonLines: pruned.skeletonLines,
+            })
           }
           const paged = info.size > MAX_READ_BYTES || page.offset !== undefined || page.limit !== undefined
           if (!paged) {
