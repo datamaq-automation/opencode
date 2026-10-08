@@ -7,25 +7,26 @@ Estado de verificación de las optimizaciones de herramientas. Para el catálogo
 | Optimización | Cómo se verificó | Estado |
 |---|---|---|
 | Skeleton opt-in en `read` (legacy y Core V2) | `view: "skeleton"` aplica el skeleton; sin `view` devuelve el contenido completo, incluso en archivos > 800 líneas | Validado |
-| Telemetría en `/telemetry` (TUI, v1) | Tests de `session-runner-tool-telemetry` y prueba manual: `read` con skeleton reporta ahorro > 0 | Validado |
-| Poda de output de `bash` (solo ruido) | Tests de `terminal-pruner` con salida sintética | Validado en tests; no verificado con salida real de instalación |
+| Telemetría en `/telemetry` (TUI, v1) | `packages/tui/test/context/telemetry.test.ts` cubre `savings()`; prueba manual: `read` con skeleton reporta ahorro > 0 | Validado |
+| Poda de output de `bash` (solo ruido) | `packages/core/test/terminal-pruner.test.ts` con salida sintética y con dos fixtures reales (`test/fixtures/terminal-pruner/`) | `pytest -v` real: colapsa 120 líneas `PASSED` y conserva la falla, el traceback y el resumen. `bun test` real: queda entero, porque bun sin TTY solo imprime las fallas. `npm install` real da 7 líneas, nada que podar |
+| Validación sintáctica en `edit`/`write`/`apply_patch` | Tests a través de cada herramienta (`packages/opencode/test/tool/`) | Rechaza el cambio si rompe un archivo válido y deja el archivo intacto; `write` permite sobrescribir un archivo que ya era inválido |
 | Compactación de diffs (`compactLargeDiff`, ahora en `packages/core/src/util/diff.ts`) | `packages/core/test/diff.test.ts` | Solo de visualización: el diff completo se guarda y va a los prompts de permisos; el TUI y el CLI truncan los bloques inline. **No ahorra tokens del modelo**: el modelo recibe `part.state.output` (`packages/opencode/src/session/message-v2.ts:305`). Verificado por lectura de código. |
 
 ## No verificado
 
-- **Validación sintáctica en `edit`/`write`/`apply_patch`:** hay tests unitarios del validador, pero no de rechazo a través de las herramientas.
 - **Ahorro de tokens atribuible a cualquier optimización:** el A/B no tiene poder estadístico suficiente (ver `BENCHMARK-SESSION.md`).
-- **Ahorro de la poda con output real de `npm install`, `pytest`, `cargo` o `go test`.**
+- **Ahorro de la poda con output real de `cargo` o `go test`:** no están instalados en esta máquina.
+- **Telemetría V2 con datos reales:** `_rawBytes` de `bash` nunca llega al evento `session.next.tool.telemetry` (ver `OPTIMIZATIONS.md`). Los tests de `session-runner-tool-telemetry` inyectan la metadata a mano.
 
 ## Tests que fallan en el código original (preexistentes)
 
 Verificados ejecutando los archivos con y sin los cambios de la rama. Fallan igual en ambos casos; no son regresiones de esta rama.
 
 - `packages/opencode/test/tool/write.test.ts` › "sets file permissions when writing sensitive data": espera modo `0o644`. Causa no investigada.
-- `packages/opencode/test/tool/edit.test.ts` › "detects syntax errors in edited TypeScript file" y "… Python file": causa no investigada. El error que se ve en el log es el de validación sintáctica, pero no revisé qué espera el test exactamente.
 
 ## Historial
 
+- 2026-10-08: los dos tests de sintaxis de `edit` que fallaban esperaban el comportamiento anterior a `d67bd565e5` (escribir y reportar). Ahora verifican el rechazo. Los layers de test de `write` y `apply_patch` no incluían `SyntaxValidator`, así que la validación no se ejecutaba en sus tests.
 - 2026-10-08: el diff completo se guarda en metadata; el truncado ocurre solo al renderizar (TUI y CLI). `write` envía el diff completo al permiso. Ver `packages/core/src/util/diff.ts`.
 - 2026-10-08: el benchmark de 72 corridas (`baseline-v3`) quedó sin medición válida por saldo agotado del proveedor. Ver `BENCHMARK-SESSION.md`.
 

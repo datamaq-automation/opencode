@@ -69,7 +69,11 @@ Todas las optimizaciones fueron diseñadas bajo Clean Architecture, tipado estri
 - [ ] **Skeleton Automático por Umbral (retirado):**
   - *Estado:* Se implementó y luego se retiró. El A/B mostró +20% de tokens por pasos extra del modelo. Ahora el skeleton es opt-in (`view: "skeleton"`) en `read` legacy y en Core V2 (`tool-read-skeleton.test.ts`).
 - [ ] **Token Telemetry en Core V2:**
-  - *Estado:* Parcial. La telemetría v1 (TUI, `/telemetry`) funciona. El evento V2 `session.next.tool.telemetry` se publica pero nadie lo consume, y el estimador de V2 difiere del de v1. Pendiente de unificar.
+  - *Estado:* Parcial. La telemetría v1 (TUI, `/telemetry`) funciona. El evento V2 `session.next.tool.telemetry` se publica pero nadie lo consume.
+  - *Problemas en V2 (2026-10-08):*
+    - Los datos crudos nunca llegan. `bash` devuelve `_rawBytes`, pero `Schema.encodeEffect` del output descarta la clave (`core/src/tool/tool.ts`), y `registry.ts` la lee de `pending` en vez de `pending.output`.
+    - El estimador difiere del de v1: compara `ceil(bytes / 4)` contra `round(chars / 4)`. Sin poda reporta ahorro falso (1 token con 9 caracteres; varios con texto no ASCII).
+    - Pendiente de decidir cómo pasar los datos crudos antes de unificar.
   - *Beneficio:* Visibilidad forense directa en la TUI de los tokens ahorrados por cada invocación.
 - [x] **Compactación de diffs (solo visualización):**
   - *Estado:* `compactLargeDiff` vive en `packages/core/src/util/diff.ts`. El diff completo se guarda en metadata y se envía a los prompts de permiso. TUI y CLI solo truncan los bloques inline. No ahorra tokens del modelo, porque el modelo recibe `part.state.output`.
