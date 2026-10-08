@@ -170,6 +170,27 @@ describe("tool.write", () => {
         expect(result.metadata).toHaveProperty("exists", true)
       }),
     )
+
+    it.instance("sends the full diff to the permission prompt for large writes", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const filepath = path.join(test.directory, "large.txt")
+        yield* Effect.promise(() => fs.writeFile(filepath, "old\n", "utf-8"))
+        const content = Array.from({ length: 300 }, (_, i) => `line ${i} with enough content to exceed the limit`).join("\n")
+        const asked: Record<string, unknown>[] = []
+        const askCtx: Tool.Context = {
+          ...ctx,
+          ask: (req) => Effect.sync(() => void asked.push(req.metadata)),
+        }
+        yield* run({ filePath: filepath, content }, askCtx)
+
+        expect(asked).toHaveLength(1)
+        const diff = String(asked[0].diff)
+        expect(Buffer.byteLength(diff, "utf-8")).toBeGreaterThan(2048)
+        expect(diff).not.toStartWith("[Diff too large")
+        expect(diff).toContain("+line 299 with enough content")
+      }),
+    )
   })
 
   describe("file permissions", () => {
