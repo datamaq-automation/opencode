@@ -1,6 +1,6 @@
 import { afterEach, describe, expect } from "bun:test"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { Effect, Layer } from "effect"
+import { Cause, Effect, Exit, Layer } from "effect"
 import path from "path"
 import fs from "fs/promises"
 import { WriteTool } from "../../src/tool/write"
@@ -13,6 +13,7 @@ import { Tool } from "@/tool/tool"
 import { Agent } from "../../src/agent/agent"
 import { SessionID, MessageID } from "../../src/session/schema"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import { SyntaxValidator } from "@/syntax"
 import { disposeAllInstances, TestInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
@@ -41,6 +42,7 @@ const it = testEffect(
       CrossSpawnSpawner.node,
       Truncate.node,
       Agent.node,
+      SyntaxValidator.node,
     ]),
   ),
 )
@@ -56,6 +58,15 @@ const run = Effect.fn("WriteToolTest.run")(function* (
 ) {
   const tool = yield* init()
   return yield* tool.execute(args, next)
+})
+
+const fail = Effect.fn("WriteToolTest.fail")(function* (args: Tool.InferParameters<typeof WriteTool>) {
+  const exit = yield* run(args).pipe(Effect.exit)
+  if (Exit.isFailure(exit)) {
+    const err = Cause.squash(exit.cause)
+    return err instanceof Error ? err : new Error(String(err))
+  }
+  throw new Error("expected write to fail")
 })
 
 describe("tool.write", () => {
@@ -281,6 +292,46 @@ describe("tool.write", () => {
         yield* Effect.promise(() => fs.chmod(readonlyPath, 0o444))
         const exit = yield* run({ filePath: readonlyPath, content: "new content" }).pipe(Effect.exit)
         expect(exit._tag).toBe("Failure")
+      }),
+    )
+  })
+
+  describe("syntax validation", () => {
+    it.instance("rejects overwriting a valid TypeScript file with invalid syntax", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const filepath = path.join(test.directory, "valid.ts")
+        const original = "export const answer = 42\n"
+        yield* Effect.promise(() => fs.writeFile(filepath, original, "utf-8"))
+
+        const err = yield* fail({ filePath: filepath, content: "export const answer = \n" })
+
+        expect(err.message).toContain("Syntax validation failed")
+        expect(yield* Effect.promise(() => fs.readFile(filepath, "utf-8"))).toBe(original)
+      }),
+    )
+
+    it.instance("rejects creating a Python file with invalid syntax", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const filepath = path.join(test.directory, "broken.py")
+
+        const err = yield* fail({ filePath: filepath, content: "def calculate(\n    return 42\n" })
+
+        expect(err.message).toContain("Syntax validation failed")
+        expect(yield* Effect.promise(() => Bun.file(filepath).exists())).toBe(false)
+      }),
+    )
+
+    it.instance("allows overwriting a file that already had invalid syntax", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const filepath = path.join(test.directory, "broken.ts")
+        yield* Effect.promise(() => fs.writeFile(filepath, "export const a = \n", "utf-8"))
+
+        yield* run({ filePath: filepath, content: "export const b = \n" })
+
+        expect(yield* Effect.promise(() => fs.readFile(filepath, "utf-8"))).toBe("export const b = \n")
       }),
     )
   })
