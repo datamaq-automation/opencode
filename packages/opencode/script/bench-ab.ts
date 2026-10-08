@@ -108,21 +108,21 @@ const tasks: Task[] = [
     prompt: (dir) =>
       `En ${path.join(dir, "fixture.ts")}, cambiá VERSION de "1.0.0" a "2.0.0" con la herramienta de edición. Cuando termines, respondé solo: listo`,
     check: async (answer, dir) => {
-      const text = await Bun.file(path.join(dir, "fixture.ts")).text()
+      const text = await readText(path.join(dir, "fixture.ts"))
       return text.includes('"2.0.0"') && !text.includes('"1.0.0"') && /listo/i.test(answer)
     },
   },
   {
     id: "crear-archivo",
     prompt: (dir) => `Creá el archivo ${path.join(dir, "hola.txt")} con exactamente el contenido: hello-bench`,
-    check: async (_answer, dir) => (await Bun.file(path.join(dir, "hola.txt")).text()).trim() === "hello-bench",
+    check: async (_answer, dir) => (await readText(path.join(dir, "hola.txt"))).trim() === "hello-bench",
   },
   {
     id: "editar-segunda-ocurrencia",
     setup: (dir) => Bun.write(path.join(dir, "dup.txt"), "x = 1\nx = 1\n").then(() => {}),
     prompt: (dir) =>
       `En ${path.join(dir, "dup.txt")} hay dos líneas "x = 1". Cambiá solo la segunda por "x = 2" y dejá la primera igual.`,
-    check: async (_answer, dir) => (await Bun.file(path.join(dir, "dup.txt")).text()) === "x = 1\nx = 2\n",
+    check: async (_answer, dir) => (await readText(path.join(dir, "dup.txt"))) === "x = 1\nx = 2\n",
   },
 ].filter((task) => !args.tasks || args.tasks.split(",").includes(task.id))
 
@@ -270,6 +270,11 @@ type AssistantMessage = {
   tokens?: { input?: number; output?: number; reasoning?: number; cache?: { read?: number; write?: number } }
 }
 type MessagePart = { type: string; messageID: string; tool?: string; text?: string; state?: { output?: string } }
+
+// A missing file means the model did not create or edit it: the check fails instead of crashing the batch.
+async function readText(file: string) {
+  return (await Bun.file(file).exists()) ? Bun.file(file).text() : ""
+}
 
 function lastLine(text: string) {
   return text.trim().split("\n").at(-1) ?? ""
