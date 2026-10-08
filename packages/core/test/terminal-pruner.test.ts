@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import path from "path"
 import { TerminalPruner } from "../src/util/terminal-pruner"
 
 describe("TerminalPruner", () => {
@@ -101,5 +102,29 @@ describe("TerminalPruner", () => {
     expect(result.content).toContain("test session starts")
     expect(result.content).toContain("AssertionError: assert 1 == 2")
     expect(result.content).toContain("1 failed, 80 passed")
+  })
+  // Captured from real runs (paths replaced with /work): pytest -v with 120 passing tests and one failure, and
+  // bun test with 20 passing tests and one failure. bun prints only failures when stdout is not a TTY.
+  const fixture = (name: string) => Bun.file(path.join(import.meta.dir, "fixtures/terminal-pruner", name)).text()
+
+  test("collapses passing lines in real pytest output and keeps the failure", async () => {
+    const output = await fixture("pytest-verbose-failure.txt")
+    const result = TerminalPruner.prune(output, { command: "pytest -v" })
+    expect(result.pruned).toBe(true)
+    expect(result.content).toContain("[... pruned 120 passing tests / progress lines ...]")
+    expect(result.content).not.toContain("test_add_0 PASSED")
+    expect(result.content).toContain("test_math.py::test_add_broken FAILED")
+    expect(result.content).toContain("E       assert 4 == 5")
+    expect(result.content).toContain("AssertionError")
+    expect(result.content).toContain("FAILED test_math.py::test_add_broken - assert 4 == 5")
+    expect(result.content).toContain("1 failed, 120 passed")
+    expect(result.content.length).toBeLessThan(output.length)
+  })
+
+  test("leaves real bun test failure output whole", async () => {
+    const output = await fixture("bun-test-failure.txt")
+    const result = TerminalPruner.prune(output, { command: "bun test" })
+    expect(result.pruned).toBe(false)
+    expect(result.content).toBe(output)
   })
 })
