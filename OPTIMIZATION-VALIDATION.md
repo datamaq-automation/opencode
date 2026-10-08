@@ -27,6 +27,7 @@ Verificados ejecutando los archivos con y sin los cambios de la rama. Fallan igu
 
 ## Historial
 
+- 2026-10-08: el diálogo `/telemetry` se vio en pantalla (TUI en tmux) en estado vacío. No se verificó con datos reales.
 - 2026-10-08: la telemetría V2 recibe `rawBytes` y `rawTokens` de las herramientas que podan (`toTelemetry`). Antes no llegaban y el evento reportaba ahorro falso sin poda.
 - 2026-10-08: los dos tests de sintaxis de `edit` que fallaban esperaban el comportamiento anterior a `d67bd565e5` (escribir y reportar). Ahora verifican el rechazo. Los layers de test de `write` y `apply_patch` no incluían `SyntaxValidator`, así que la validación no se ejecutaba en sus tests.
 - 2026-10-08: el diff completo se guarda en metadata; el truncado ocurre solo al renderizar (TUI y CLI). `write` envía el diff completo al permiso. Ver `packages/core/src/util/diff.ts`.

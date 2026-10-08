@@ -76,7 +76,9 @@
 **Validación:**
 - [x] Telemetría derivada de tool parts metadata (no eventos SSE)
 - [x] Soporta TUI legacy v1 processor (sin V2 runner)
-- [x] Métricas precisas post-pruning
+- [x] Métricas precisas post-pruning (`packages/tui/test/context/telemetry.test.ts`)
+- [x] Diálogo visto en pantalla (2026-10-08, TUI en tmux): abre con `/telemetry` y muestra las métricas apiladas. Solo se vio vacío (0 herramientas, sin sesión)
+- [ ] Ver el diálogo con datos reales: requiere una sesión con llamadas a herramientas, que gasta saldo del proveedor
 
 ---
 

@@ -77,6 +77,9 @@ Todas las optimizaciones fueron diseñadas bajo Clean Architecture, tipado estri
   - *Estado:* `compactLargeDiff` vive en `packages/core/src/util/diff.ts`. El diff completo se guarda en metadata y se envía a los prompts de permiso. TUI y CLI solo truncan los bloques inline. No ahorra tokens del modelo, porque el modelo recibe `part.state.output`.
 - [ ] **Medición de ahorro de tokens pendiente:**
   - *Estado:* el benchmark actual no distingue efectos menores a ~10–15%. La corrida de 72 quedó inválida por saldo agotado del proveedor. Ver `BENCHMARK-SESSION.md`.
+  - *Siguiente paso:* recargar saldo de DeepSeek (~0.85 USD por 72 corridas) y relanzar la línea base con 12 tareas y 2 variantes. Ollama con `qwen2.5-coder:7b` no sirve: usó 0 herramientas en 3 de 3 corridas. La reducción de pasos se mide contra esa línea base, un cambio por commit.
+- [ ] **`apply_patch` aplica patches a medias:**
+  - *Estado:* valida la sintaxis de cada archivo dentro del loop de escritura (`packages/opencode/src/tool/apply_patch.ts`). Si falla un archivo posterior, los anteriores ya quedaron escritos. Arreglo propuesto: validar todos los cambios antes de escribir el primero.
 - [ ] **LRU Cache en RAM para Embeddings de Alto Tráfico:**
   - *Objetivo:* Colocar una pequeña caché LRU de 256 elementos frente a `SemanticCache` de SQLite para responder a consultas repetidas en sub-microsegundos (< 1 µs).
 
