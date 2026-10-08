@@ -51,80 +51,82 @@ const expected = await computeExpectations()
 // Every task must be answerable from the target repository alone, whatever opencode version runs it.
 // Read tasks answer from repository state pinned by an anchor commit or by a symbol this repo does not edit.
 // Edit tasks work on fixture files under the run's output directory, never inside the repository.
-const tasks: Task[] = [
-  {
-    id: "resumen-archivo-grande",
-    prompt: () => "Explicá en 5 viñetas qué hace packages/opencode/src/session/processor.ts.",
-    check: (answer) => /processor/i.test(answer) && /tool|herramienta/i.test(answer),
-  },
-  {
-    id: "detalle-implementacion",
-    prompt: () =>
-      "En packages/opencode/src/tool/shell.ts, ¿qué hace exactamente la función `tail` cuando el texto supera maxLines o maxBytes? Explicá el algoritmo línea por línea.",
-    check: (answer) => /tail/i.test(answer) && /bytes?/i.test(answer),
-  },
-  {
-    id: "buscar-definicion",
-    prompt: () => "¿En qué archivo se define `estimate` en el paquete core y cuántos caracteres por token usa?",
-    check: (answer) => /util\/token\.ts|token\.ts/.test(answer) && /\b4\b/.test(answer),
-  },
-  {
-    id: "correr-tests",
-    prompt: () =>
-      "Corré `bun test test/tool/read.test.ts` dentro de packages/opencode y decime cuántos tests pasaron y cuántos fallaron.",
-    check: (answer) => answer.includes(String(expected.readTestsPassed)),
-  },
-  {
-    id: "log-git",
-    prompt: () =>
-      `Ejecutá \`git log --oneline ${expected.anchor} -n 300\` y decime el hash del commit más antiguo de esa lista.`,
-    check: (answer) => answer.includes(expected.oldestCommit),
-  },
-  {
-    id: "contar-dependencias",
-    prompt: () =>
-      "¿Cuántas entradas tiene el array `deps` del `node` exportado en packages/opencode/src/tool/registry.ts? Listalas.",
-    check: (answer) => answer.includes(String(expected.registryDeps)),
-  },
-  {
-    id: "max-read-bytes",
-    prompt: () => "¿Cuál es el valor de MAX_READ_BYTES en packages/core/src/tool/read-filesystem.ts, en bytes?",
-    check: (answer) => /51[.,\s_]?200|50\s?\*\s?1024|50\s?KB/i.test(answer),
-  },
-  {
-    id: "max-read-lines",
-    prompt: () => "¿Cuál es el valor de MAX_READ_LINES en packages/core/src/tool/read-filesystem.ts?",
-    check: (answer) => /2[.,\s_]?000/.test(answer),
-  },
-  {
-    id: "contar-tools",
-    prompt: () =>
-      "¿Cuántos archivos .ts hay directamente dentro de packages/opencode/src/tool (sin contar subcarpetas)?",
-    check: (answer) => answer.includes(String(expected.toolFiles)),
-  },
-  {
-    id: "editar-version",
-    setup: (dir) => Bun.write(path.join(dir, "fixture.ts"), 'export const VERSION = "1.0.0"\n').then(() => {}),
-    prompt: (dir) =>
-      `En ${path.join(dir, "fixture.ts")}, cambiá VERSION de "1.0.0" a "2.0.0" con la herramienta de edición. Cuando termines, respondé solo: listo`,
-    check: async (answer, dir) => {
-      const text = await readText(path.join(dir, "fixture.ts"))
-      return text.includes('"2.0.0"') && !text.includes('"1.0.0"') && /listo/i.test(answer)
+const tasks = (
+  [
+    {
+      id: "resumen-archivo-grande",
+      prompt: () => "Explicá en 5 viñetas qué hace packages/opencode/src/session/processor.ts.",
+      check: (answer) => /processor/i.test(answer) && /tool|herramienta/i.test(answer),
     },
-  },
-  {
-    id: "crear-archivo",
-    prompt: (dir) => `Creá el archivo ${path.join(dir, "hola.txt")} con exactamente el contenido: hello-bench`,
-    check: async (_answer, dir) => (await readText(path.join(dir, "hola.txt"))).trim() === "hello-bench",
-  },
-  {
-    id: "editar-segunda-ocurrencia",
-    setup: (dir) => Bun.write(path.join(dir, "dup.txt"), "x = 1\nx = 1\n").then(() => {}),
-    prompt: (dir) =>
-      `En ${path.join(dir, "dup.txt")} hay dos líneas "x = 1". Cambiá solo la segunda por "x = 2" y dejá la primera igual.`,
-    check: async (_answer, dir) => (await readText(path.join(dir, "dup.txt"))) === "x = 1\nx = 2\n",
-  },
-].filter((task) => !args.tasks || args.tasks.split(",").includes(task.id))
+    {
+      id: "detalle-implementacion",
+      prompt: () =>
+        "En packages/opencode/src/tool/shell.ts, ¿qué hace exactamente la función `tail` cuando el texto supera maxLines o maxBytes? Explicá el algoritmo línea por línea.",
+      check: (answer) => /tail/i.test(answer) && /bytes?/i.test(answer),
+    },
+    {
+      id: "buscar-definicion",
+      prompt: () => "¿En qué archivo se define `estimate` en el paquete core y cuántos caracteres por token usa?",
+      check: (answer) => /util\/token\.ts|token\.ts/.test(answer) && /\b4\b/.test(answer),
+    },
+    {
+      id: "correr-tests",
+      prompt: () =>
+        "Corré `bun test test/tool/read.test.ts` dentro de packages/opencode y decime cuántos tests pasaron y cuántos fallaron.",
+      check: (answer) => answer.includes(String(expected.readTestsPassed)),
+    },
+    {
+      id: "log-git",
+      prompt: () =>
+        `Ejecutá \`git log --oneline ${expected.anchor} -n 300\` y decime el hash del commit más antiguo de esa lista.`,
+      check: (answer) => answer.includes(expected.oldestCommit),
+    },
+    {
+      id: "contar-dependencias",
+      prompt: () =>
+        "¿Cuántas entradas tiene el array `deps` del `node` exportado en packages/opencode/src/tool/registry.ts? Listalas.",
+      check: (answer) => answer.includes(String(expected.registryDeps)),
+    },
+    {
+      id: "max-read-bytes",
+      prompt: () => "¿Cuál es el valor de MAX_READ_BYTES en packages/core/src/tool/read-filesystem.ts, en bytes?",
+      check: (answer) => /51[.,\s_]?200|50\s?\*\s?1024|50\s?KB/i.test(answer),
+    },
+    {
+      id: "max-read-lines",
+      prompt: () => "¿Cuál es el valor de MAX_READ_LINES en packages/core/src/tool/read-filesystem.ts?",
+      check: (answer) => /2[.,\s_]?000/.test(answer),
+    },
+    {
+      id: "contar-tools",
+      prompt: () =>
+        "¿Cuántos archivos .ts hay directamente dentro de packages/opencode/src/tool (sin contar subcarpetas)?",
+      check: (answer) => answer.includes(String(expected.toolFiles)),
+    },
+    {
+      id: "editar-version",
+      setup: (dir) => Bun.write(path.join(dir, "fixture.ts"), 'export const VERSION = "1.0.0"\n').then(() => {}),
+      prompt: (dir) =>
+        `En ${path.join(dir, "fixture.ts")}, cambiá VERSION de "1.0.0" a "2.0.0" con la herramienta de edición. Cuando termines, respondé solo: listo`,
+      check: async (answer, dir) => {
+        const text = await readText(path.join(dir, "fixture.ts"))
+        return text.includes('"2.0.0"') && !text.includes('"1.0.0"') && /listo/i.test(answer)
+      },
+    },
+    {
+      id: "crear-archivo",
+      prompt: (dir) => `Creá el archivo ${path.join(dir, "hola.txt")} con exactamente el contenido: hello-bench`,
+      check: async (_answer, dir) => (await readText(path.join(dir, "hola.txt"))).trim() === "hello-bench",
+    },
+    {
+      id: "editar-segunda-ocurrencia",
+      setup: (dir) => Bun.write(path.join(dir, "dup.txt"), "x = 1\nx = 1\n").then(() => {}),
+      prompt: (dir) =>
+        `En ${path.join(dir, "dup.txt")} hay dos líneas "x = 1". Cambiá solo la segunda por "x = 2" y dejá la primera igual.`,
+      check: async (_answer, dir) => (await readText(path.join(dir, "dup.txt"))) === "x = 1\nx = 2\n",
+    },
+  ] satisfies Task[]
+).filter((task) => !args.tasks || args.tasks.split(",").includes(task.id))
 
 type Task = {
   id: string
