@@ -5,8 +5,10 @@
 > A/B benchmark completo ejecutado 2026-10-06 (`packages/opencode/script/bench-ab.ts`) mostró que:
 > - Skeleton automático + poda genérica causaban +20% tokens (pasos extra de modelo)
 > - **Solución implementada**: Skeleton ahora es opt-in (view="skeleton"), poda solo colapsa noise (tests/installer)
-> - **Resultado**: Rerun 2026-10-06 post-fixes: +0.9% tokens (vs upstream +0% noise)
-> - **Conclusión**: Optimizaciones validadas. Pronto a Phase 2 (LSP cache).
+> - **Resultado**: Rerun 2026-10-06 post-fixes (`ab-2026-10-06-v2`, solo `full` y `upstream`, 6 tareas × 3 repeticiones): `full` +0.9% de tokens de prompt frente a `upstream`
+> - **Corrida previa** (`ab-2026-10-06`, pre-fixes): `full` +11.2% y `no-tool-opt` −3.9% frente a `upstream`, con 18/18 respuestas correctas en las tres variantes
+> - **Conclusión**: Con n=18 por variante, +0.9% está dentro del ruido. Las optimizaciones no quedan demostradas como ahorro; solo se verificó que no empeoran el total.
+> - **Phase 2 (LSP cache)**: revertida de la rama, sin trabajo en curso (ver al final)
 
 **Objetivo**: Documentar las optimizaciones validadas en sesiones reales y su impacto medido.
 
@@ -96,21 +98,22 @@ Resultados guardados en: `~/.local/share/opencode-bench/ab-{date}/`
 
 | Metric | Expected | Observed | Status |
 |--------|----------|----------|--------|
-| Skeleton opt-in (no auto re-reads) | +0% tokens | +0.9% (noise) | ✓ |
-| Terminal pruning (noise only) | Savings visible | >5 KB per session | ✓ |
-| Telemetría TUI accuracy | Tool parts match | 100% correlation | ✓ |
-| Total impact (post-fixes) | Near-zero | +0.9% vs upstream | ✓ |
-| All variants correctness | 18/18 | 18/18 tasks correct | ✓ |
+| Skeleton opt-in (no auto re-reads) | +0% tokens | No medido por separado; el +0.9% es del total | — |
+| Terminal pruning (noise only) | Savings visible | ">5 KB per session": sin datos guardados que lo respalden | No verificado |
+| Telemetría TUI accuracy | Tool parts match | "100% correlation": sin datos guardados que lo respalden | No verificado |
+| Total impact (post-fixes) | Near-zero | +0.9% `full` vs `upstream` (v2) | Dentro del ruido |
+| Correctness (post-fixes) | 18/18 | `full` 17/18 (falla `contar-dependencias` rep 0); `upstream` 18/18 | Parcial |
+| Correctness (pre-fixes) | 18/18 | 18/18 en `full`, `no-tool-opt` y `upstream` | ✓ |
 
-**Conclusión**: Optimizaciones validadas. Diferencias <1 paso (~20k tokens) están dentro del noise.
+**Conclusión**: el benchmark muestra que el cambio final no sube el total de tokens de forma medible con 18 corridas por variante. No demuestra ahorro, y una falla de correctitud en `full` queda sin investigar.
 
 ---
 
 ## Next Phase: LSP Optimization (Phase 2)
 
-El trabajo futuro planeado (LSP cache foundation) quedó en rama separada. 
+El trabajo de LSP cache foundation fue revertido de `telemetry-tool-parts` (commit `8fbf2554c5`), no movido a otra rama.
 
-**Decisión**: Revertido de `telemetry-tool-parts` porque:
+**Decisión**: Revertido porque:
 - Código incompleto (immutable dependency missing, EventV2Bridge.Interface no exportado)
 - Marcado como "future work" en el commit
 - Requiere validación separada
