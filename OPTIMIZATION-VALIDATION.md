@@ -16,16 +16,18 @@ Estado de verificación de las optimizaciones de herramientas. Para el catálogo
 
 - **Ahorro de tokens atribuible a cualquier optimización:** el A/B no tiene poder estadístico suficiente (ver `BENCHMARK-SESSION.md`).
 - **Ahorro de la poda con output real de `cargo` o `go test`:** no están instalados en esta máquina.
-- **Telemetría V2 con datos reales:** `_rawBytes` de `bash` nunca llega al evento `session.next.tool.telemetry` (ver `OPTIMIZATIONS.md`). Los tests de `session-runner-tool-telemetry` inyectan la metadata a mano.
+- **Telemetría V2 de punta a punta:** `tool-bash.test.ts` verifica que la telemetría sale del registry y `session-runner-tool-telemetry.test.ts` que el publicador la usa; no hay un test que recorra el runner completo hasta el evento.
 
 ## Tests que fallan en el código original (preexistentes)
 
 Verificados ejecutando los archivos con y sin los cambios de la rama. Fallan igual en ambos casos; no son regresiones de esta rama.
 
 - `packages/opencode/test/tool/write.test.ts` › "sets file permissions when writing sensitive data": espera modo `0o644`. Causa no investigada.
+- `packages/core`: `session-runner.test.ts` (2 tests de `SessionRunnerLLM`), `location-layer.test.ts` › "isolates location state…" y `project-copy.test.ts` › "requires force to remove a dirty git worktree". Fallan igual con y sin los cambios de telemetría. `process.test.ts` › "fiber interruption cleans up…" falla a veces con la suite completa y pasa sola.
 
 ## Historial
 
+- 2026-10-08: la telemetría V2 recibe `rawBytes` y `rawTokens` de las herramientas que podan (`toTelemetry`). Antes no llegaban y el evento reportaba ahorro falso sin poda.
 - 2026-10-08: los dos tests de sintaxis de `edit` que fallaban esperaban el comportamiento anterior a `d67bd565e5` (escribir y reportar). Ahora verifican el rechazo. Los layers de test de `write` y `apply_patch` no incluían `SyntaxValidator`, así que la validación no se ejecutaba en sus tests.
 - 2026-10-08: el diff completo se guarda en metadata; el truncado ocurre solo al renderizar (TUI y CLI). `write` envía el diff completo al permiso. Ver `packages/core/src/util/diff.ts`.
 - 2026-10-08: el benchmark de 72 corridas (`baseline-v3`) quedó sin medición válida por saldo agotado del proveedor. Ver `BENCHMARK-SESSION.md`.

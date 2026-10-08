@@ -70,10 +70,8 @@ Todas las optimizaciones fueron diseñadas bajo Clean Architecture, tipado estri
   - *Estado:* Se implementó y luego se retiró. El A/B mostró +20% de tokens por pasos extra del modelo. Ahora el skeleton es opt-in (`view: "skeleton"`) en `read` legacy y en Core V2 (`tool-read-skeleton.test.ts`).
 - [ ] **Token Telemetry en Core V2:**
   - *Estado:* Parcial. La telemetría v1 (TUI, `/telemetry`) funciona. El evento V2 `session.next.tool.telemetry` se publica pero nadie lo consume.
-  - *Problemas en V2 (2026-10-08):*
-    - Los datos crudos nunca llegan. `bash` devuelve `_rawBytes`, pero `Schema.encodeEffect` del output descarta la clave (`core/src/tool/tool.ts`), y `registry.ts` la lee de `pending` en vez de `pending.output`.
-    - El estimador difiere del de v1: compara `ceil(bytes / 4)` contra `round(chars / 4)`. Sin poda reporta ahorro falso (1 token con 9 caracteres; varios con texto no ASCII).
-    - Pendiente de decidir cómo pasar los datos crudos antes de unificar.
+  - *Estimador unificado (2026-10-08):* las herramientas V2 declaran la telemetría con `toTelemetry` en `Tool.make` (`core/src/tool/tool.ts`). `bash` reporta `rawBytes` y `rawTokens` con `Token.estimate` sobre el texto crudo, igual que v1, y solo cuando la poda acortó la salida. Sin datos crudos, el ahorro es 0. Antes, los datos crudos nunca llegaban al evento (el encode del schema descartaba `_rawBytes`) y el publicador reportaba ahorro falso sin poda.
+  - *Pendiente:* `read` V2 con `view: "skeleton"` no reporta telemetría. `rawTokens` de `bash` cuenta toda la salida cruda, aunque sin poda el registry la habría acotado igual, así que sobreestima el ahorro en salidas muy grandes.
   - *Beneficio:* Visibilidad forense directa en la TUI de los tokens ahorrados por cada invocación.
 - [x] **Compactación de diffs (solo visualización):**
   - *Estado:* `compactLargeDiff` vive en `packages/core/src/util/diff.ts`. El diff completo se guarda en metadata y se envía a los prompts de permiso. TUI y CLI solo truncan los bloques inline. No ahorra tokens del modelo, porque el modelo recibe `part.state.output`.
