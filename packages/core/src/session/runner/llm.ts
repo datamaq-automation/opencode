@@ -283,7 +283,7 @@ const layer = Layer.effect(
                       name: event.name,
                       result: settlement.result,
                       output: settlement.output,
-                      ...(settlement.rawBytes !== undefined ? { metadata: { rawBytes: settlement.rawBytes } } : {}),
+                      ...(settlement.telemetry ? { metadata: { ...settlement.telemetry } } : {}),
                     }),
                     settlement.outputPaths ?? [],
                   ),

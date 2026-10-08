@@ -9,7 +9,15 @@ import { SessionSchema } from "../session/schema"
 import { ToolOutputStore } from "../tool-output-store"
 import { Wildcard } from "../util/wildcard"
 import { ApplicationTools } from "./application-tools"
-import { definition, permission, settle, validateName, type AnyTool, type RegistrationError } from "./tool"
+import {
+  definition,
+  permission,
+  settle,
+  validateName,
+  type AnyTool,
+  type RegistrationError,
+  type Telemetry,
+} from "./tool"
 import { Tools } from "./tools"
 import { makeLocationNode } from "../effect/app-node"
 
@@ -35,7 +43,7 @@ export interface Settlement {
   readonly result: ToolResultValue
   readonly output?: ToolOutput
   readonly outputPaths?: ReadonlyArray<string>
-  readonly rawBytes?: number
+  readonly telemetry?: Telemetry
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/v2/ToolRegistry") {}
@@ -66,21 +74,25 @@ const registryLayer = Layer.effect(
         assistantMessageID: input.assistantMessageID,
         toolCallID: input.call.id,
       }).pipe(
-        Effect.map((output) => ({ output })),
         Effect.catchTag("LLM.ToolFailure", (failure) =>
           Effect.succeed({ result: { type: "error" as const, value: failure.message } }),
         ),
       )
       if ("result" in pending) return pending
-      const output = pending.output
-      const rawBytes = (pending as any).rawBytes
-      const bounded = yield* resources.bound({ sessionID: input.sessionID, toolCallID: input.call.id, output })
+      const telemetry = pending.telemetry ? { telemetry: pending.telemetry } : {}
+      const bounded = yield* resources.bound({
+        sessionID: input.sessionID,
+        toolCallID: input.call.id,
+        output: pending.output,
+      })
       const result = ToolOutput.toResultValue(bounded.output)
       if (result.type === "error")
-        return bounded.outputPaths.length > 0 ? { result, outputPaths: bounded.outputPaths, ...(rawBytes !== undefined ? { rawBytes } : {}) } : { result, ...(rawBytes !== undefined ? { rawBytes } : {}) }
+        return bounded.outputPaths.length > 0
+          ? { result, outputPaths: bounded.outputPaths, ...telemetry }
+          : { result, ...telemetry }
       return bounded.outputPaths.length > 0
-        ? { result, output: bounded.output, outputPaths: bounded.outputPaths, ...(rawBytes !== undefined ? { rawBytes } : {}) }
-        : { result, output: bounded.output, ...(rawBytes !== undefined ? { rawBytes } : {}) }
+        ? { result, output: bounded.output, outputPaths: bounded.outputPaths, ...telemetry }
+        : { result, output: bounded.output, ...telemetry }
     })
 
     return Service.of({

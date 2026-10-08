@@ -63,7 +63,6 @@ export const createLLMEventPublisher = (events: EventV2.Interface, input: Input)
       settled: boolean
       providerExecuted: boolean
       providerMetadata?: ProviderMetadata
-      rawContent?: string
     }
   >()
   const timestamp = DateTime.now
@@ -379,9 +378,10 @@ export const createLLMEventPublisher = (events: EventV2.Interface, input: Input)
           .map((c) => (typeof c === "object" && "text" in c ? c.text : JSON.stringify(c)))
           .join("")
         const prunedBytes = Buffer.byteLength(contentStr, "utf-8")
-        const rawBytes = event.metadata?.rawBytes as number | undefined ?? (tool.rawContent ? Buffer.byteLength(tool.rawContent, "utf-8") : prunedBytes)
         const prunedTokens = Token.estimate(contentStr)
-        const rawTokens = tool.rawContent ? Token.estimate(tool.rawContent) : Math.ceil(rawBytes / 4)
+        // Tools report raw sizes only when they pruned; otherwise the sent output is the raw output.
+        const rawBytes = typeof event.metadata?.rawBytes === "number" ? event.metadata.rawBytes : prunedBytes
+        const rawTokens = typeof event.metadata?.rawTokens === "number" ? event.metadata.rawTokens : prunedTokens
         const tokensSaved = Math.max(0, rawTokens - prunedTokens)
 
         yield* events.publish(SessionEvent.Tool.Telemetry, {
