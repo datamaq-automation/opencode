@@ -40,15 +40,8 @@ prefijo es automático y exacto byte a byte: no requiere marcadores
   test/provider/openai-compatible-chat.test.ts` (33 OK) y `bun typecheck` en
   `packages/llm`.
 
-## Tareas pendientes
+## Seguimiento de Tareas
 
-- [ ] Crear `packages/opencode/src/session/prompt/deepseek.txt` y su rama en
-  `SystemPrompt.provider` (detectar `deepseek` en `model.api.id` o
-  `providerID`); añadir test en `packages/opencode/test/session/system.test.ts`.
-- [ ] Estabilizar el prefijo: mover `Today's date` y otros datos volátiles al
-  final del contexto o a un mensaje aparte. Validar que no rompa otros
-  proveedores.
-- [ ] Medir la tasa de aciertos de caché en una sesión real con DeepSeek
-  (`cacheReadInputTokens / inputTokens`) antes y después.
-- [ ] Revisar costos por modelo DeepSeek para que usen el precio de lectura de
-  caché.
+Las tareas pendientes fueron migradas a GitHub Issues:
+- Issue #5: `feat(prompt): crear prompt de sistema optimizado para DeepSeek`
+- Issue #6: `perf(cache): estabilizar prefijo de sistema moviendo datos volátiles`
