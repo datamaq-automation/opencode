@@ -15,6 +15,7 @@
 import os from "os"
 import path from "path"
 import stripAnsi from "strip-ansi"
+import { compactLargeDiff } from "@opencode-ai/core/util/diff"
 import type { ToolPart } from "@opencode-ai/sdk/v2"
 import type * as Tool from "@/tool/tool"
 import type { ApplyPatchTool } from "@/tool/apply_patch"
@@ -351,7 +352,7 @@ function runEdit(p: ToolProps<typeof EditTool>): ToolInline {
     icon: "←",
     title: `Edit ${toolPath(p.input.filePath)}`,
     mode: "block",
-    body: p.metadata.diff,
+    body: p.metadata.diff && compactLargeDiff(p.metadata.diff),
   }
 }
 

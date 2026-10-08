@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { compactLargeDiff } from "../../src/tool/edit"
+import { compactLargeDiff } from "../src/util/diff"
 
 describe("compactLargeDiff", () => {
   test("keeps diffs at or under 2048 bytes unchanged", () => {
