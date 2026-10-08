@@ -82,15 +82,39 @@
 
 ## Automated Benchmark
 
-Para medir token impact end-to-end:
+Para medir token impact end-to-end, desde `packages/opencode`:
 
 ```bash
-# Ejecutar desde packages/opencode:
-bun run script/bench-ab.ts
+bun run bench:ab --reps 3 --variants full,upstream --out ~/.local/share/opencode-bench/<nombre>
 ```
 
-Compara: baseline vs full optimizations vs individual phases.  
-Resultados guardados en: `~/.local/share/opencode-bench/ab-{date}/`
+Opciones: `--variants` (`full`, `no-tool-opt`, `upstream`), `--tasks` (ids separados por coma), `--reps`, `--concurrency` (3 por defecto), `--model` (`deepseek/deepseek-v4-pro` por defecto). Resultados: `results.json` (crudo, una fila por corrida) y `report.md`.
+
+### Tareas (12)
+
+- **Lectura (9):** `resumen-archivo-grande`, `detalle-implementacion`, `buscar-definicion` (símbolo `estimate` en core), `correr-tests`, `log-git` (anclado a `f7da00f35e`), `contar-dependencias`, `max-read-bytes`, `max-read-lines`, `contar-tools`.
+- **Edición (3):** `editar-version`, `crear-archivo`, `editar-segunda-ocurrencia`. Cada una trabaja sobre archivos temporales en `<out>/scratch/`, nunca dentro del repo, y se verifica leyendo el archivo resultante.
+
+Las expectativas que dependen del repo (`registryDeps`, `readTestsPassed`, `oldestCommit`, `toolFiles`) se calculan al arrancar. `log-git` usa un commit fijo como ancla para que los commits nuevos no cambien la respuesta esperada.
+
+### Reporte
+
+- **Totales y por tarea:** medianas por tarea; los totales son la suma de medianas.
+- **Diferencia pareada vs línea base:** promedio de la log-razón de prompt tokens por tarea, con error estándar entre tareas. Es la cifra que sirve para decidir, porque la varianza entre tareas domina a la varianza entre repeticiones.
+- **Herramientas por variante:** llamadas totales por nombre, leídas de las partes `tool` de la base de datos de cada variante.
+
+### Protocolo de corrida
+
+1. **Revisar el saldo del proveedor antes de correr.** Con saldo agotado, las corridas fallan con `AI_APICallError: Insufficient Balance` y el benchmark no mide nada (ver la corrida fallida abajo).
+2. **No hacer commits ni cambios en el repo mientras corre.** La variante `full` ejecuta el checkout actual; cambiar archivos durante la corrida la contamina.
+3. **Las ediciones van a `<out>/scratch/`**, nunca al repo.
+4. **Medir solo con el número de corridas completo.** Una corrida con fallas no se compara con otra completa.
+
+### Corrida fallida: `baseline-v3` (2026-10-08)
+
+Intento de 72 corridas (12 tareas × 3 repeticiones × `full` y `upstream`). Terminó con 53 fallidas. La causa está en `data/<variant>/opencode/log/opencode.log`: `AI_APICallError: Insufficient Balance` desde DeepSeek, a partir de las 04:01. Las 19 corridas restantes son una muestra incompleta y no se usan para comparar. Hay que relanzar con saldo.
+
+Lección: el error aparece en el log de opencode, no en `results.json`, que solo guarda `ok: false` con `error` vacío. Cuando una corrida falla sin mensaje, revisar el log antes de sacar conclusiones.
 
 ---
 
