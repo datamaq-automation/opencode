@@ -107,6 +107,23 @@ Resultados guardados en: `~/.local/share/opencode-bench/ab-{date}/`
 
 **Conclusión**: el benchmark muestra que el cambio final no sube el total de tokens de forma medible con 18 corridas por variante. No demuestra ahorro, y una falla de correctitud en `full` queda sin investigar.
 
+### Investigación posterior (2026-10-08)
+
+Línea base sobre HEAD `telemetry-cleanup` (`baseline-telemetry-cleanup`), comparada con upstream. Las diferencias son pareadas por tarea, con error estándar sobre las 6 tareas:
+
+| Corrida | `full` vs upstream | `no-tool-opt` vs upstream |
+|---|---|---|
+| v1 (pre-fixes) | +11.2% (sin error estándar calculado) | −3.9% |
+| v2 (post-fixes) | +1.4% ± 3.8% | — |
+| Baseline (HEAD actual) | +6.7% ± 7.5% | +3.0% |
+
+- **Ninguna diferencia es distinguible del ruido.** Entre tareas el cambio va de −19% a +38%. Con 6 tareas × 3 repeticiones, el benchmark no detecta efectos menores a ~10–15%.
+- **`contar-dependencias` (v2, `full`, rep 0):** el modelo respondió "24 entradas" y listó 25. Son 25 entradas reales en `registry.ts:438-466`. Es un error de conteo del modelo, no una regresión de la herramienta.
+- **`log-git` (baseline, reps 1 y 2, todas las variantes):** el benchmark se corrió mientras yo hacía commits en el mismo repo que usa como objetivo. El commit `f7da00f` (esperado) quedó en la posición 305 de `git log -n 300`, y la ventana empieza ahora en `1ce281b7ab`. Es un artefacto del entorno. Corregirlo requiere fijar la ventana del prompt a un commit, en lugar de `HEAD`.
+- **Regla para futuras corridas:** no hacer commits ni cambios en el repo objetivo mientras corre `bench:ab`, o correrlo en un worktree fijo.
+
+**Ruta de sesión por defecto:** `opencode run` envía prompts por el SDK a `/session/:id/prompt`, que usa `SessionPrompt.Service` (v1) (`handlers/session.ts:52,300`). Ningún route de prompt que revisé usa V2. No verifiqué la ruta del TUI.
+
 ---
 
 ## Next Phase: LSP Optimization (Phase 2)
