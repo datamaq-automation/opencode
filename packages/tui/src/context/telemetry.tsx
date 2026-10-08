@@ -40,7 +40,7 @@ export const { use: useTelemetry, provider: TelemetryProvider } = createSimpleCo
   },
 })
 
-function savings(part: Part) {
+export function savings(part: Part) {
   if (part.type !== "tool" || part.state.status !== "completed") return
   const telemetry = part.state.metadata.telemetry
   if (!isRecord(telemetry)) return
