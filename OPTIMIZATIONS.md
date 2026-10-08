@@ -71,6 +71,10 @@ Todas las optimizaciones fueron diseñadas bajo Clean Architecture, tipado estri
 - [ ] **Token Telemetry en Core V2:**
   - *Estado:* Parcial. La telemetría v1 (TUI, `/telemetry`) funciona. El evento V2 `session.next.tool.telemetry` se publica pero nadie lo consume, y el estimador de V2 difiere del de v1. Pendiente de unificar.
   - *Beneficio:* Visibilidad forense directa en la TUI de los tokens ahorrados por cada invocación.
+- [x] **Compactación de diffs (solo visualización):**
+  - *Estado:* `compactLargeDiff` vive en `packages/core/src/util/diff.ts`. El diff completo se guarda en metadata y se envía a los prompts de permiso. TUI y CLI solo truncan los bloques inline. No ahorra tokens del modelo, porque el modelo recibe `part.state.output`.
+- [ ] **Medición de ahorro de tokens pendiente:**
+  - *Estado:* el benchmark actual no distingue efectos menores a ~10–15%. La corrida de 72 quedó inválida por saldo agotado del proveedor. Ver `BENCHMARK-SESSION.md`.
 - [ ] **LRU Cache en RAM para Embeddings de Alto Tráfico:**
   - *Objetivo:* Colocar una pequeña caché LRU de 256 elementos frente a `SemanticCache` de SQLite para responder a consultas repetidas en sub-microsegundos (< 1 µs).
 
