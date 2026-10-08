@@ -25,6 +25,10 @@ const args = parseArgs({
     upstream: { type: "string", default: path.resolve(import.meta.dir, "../../../../opencode-upstream") },
     concurrency: { type: "string", default: "3" },
     timeout: { type: "string", default: "600" },
+    // Spend guard: refuse to start if the estimate exceeds this, and stop launching runs once it is reached.
+    "max-cost": { type: "string", default: "1" },
+    // Stop after this many consecutive failed runs, so a provider outage does not burn the whole batch.
+    "max-failures": { type: "string", default: "3" },
     out: { type: "string" },
   },
 }).values
@@ -136,26 +140,43 @@ const jobs = Array.from({ length: Number(args.reps) }, (_, rep) =>
 console.log(`target: ${target}`)
 console.log(`output: ${out}`)
 console.log(`model: ${args.model} · ${jobs.length} runs · expected ${JSON.stringify(expected)}`)
+// Observed average was about 0.012 USD per run; 0.015 keeps the estimate on the safe side.
+const estimate = jobs.length * 0.015
+console.log(`costo estimado ~${estimate.toFixed(2)} USD (tope ${args["max-cost"]} USD)`)
+if (estimate > Number(args["max-cost"])) {
+  console.error("El costo estimado supera --max-cost. Subí el tope a propósito para confirmar el gasto.")
+  process.exit(1)
+}
 await Promise.all(variants.map((variant) => prepareDataHome(variant.id)))
 
-const results = await pool(jobs, Number(args.concurrency), async (job, index) => {
-  const dir = path.join(out, "scratch", `${job.task.id}-${job.variant.id}-${job.rep}`)
-  await fs.mkdir(dir, { recursive: true })
-  await job.task.setup?.(dir)
-  const result = await runJob(job.variant, job.task.prompt(dir))
-  const row = {
-    variant: job.variant.id,
-    task: job.task.id,
-    rep: job.rep,
-    ...result,
-    correct: result.ok && (await job.task.check(result.answer, dir)),
-  }
-  console.log(
-    `[${index + 1}/${jobs.length}] ${row.variant} · ${row.task} · rep ${row.rep}: ` +
-      (row.ok ? `${row.promptTokens} prompt tk, ${row.toolCalls} tools, ${row.correct ? "ok" : "WRONG"}` : `FAILED ${row.error}`),
-  )
-  return row
-})
+// Shared by all workers: once a guard trips, no worker starts another run.
+const guard = { cost: 0, failures: 0, stop: "" }
+const results = (
+  await pool(jobs, Number(args.concurrency), async (job, index) => {
+    if (guard.stop) return undefined
+    const dir = path.join(out, "scratch", `${job.task.id}-${job.variant.id}-${job.rep}`)
+    await fs.mkdir(dir, { recursive: true })
+    await job.task.setup?.(dir)
+    const result = await runJob(job.variant, job.task.prompt(dir))
+    const row = {
+      variant: job.variant.id,
+      task: job.task.id,
+      rep: job.rep,
+      ...result,
+      correct: result.ok && (await job.task.check(result.answer, dir)),
+    }
+    console.log(
+      `[${index + 1}/${jobs.length}] ${row.variant} · ${row.task} · rep ${row.rep}: ` +
+        (row.ok ? `${row.promptTokens} prompt tk, ${row.toolCalls} tools, ${row.correct ? "ok" : "WRONG"}` : `FAILED ${row.error}`),
+    )
+    guard.cost += row.cost
+    guard.failures = row.ok ? 0 : guard.failures + 1
+    if (guard.cost >= Number(args["max-cost"])) guard.stop = `costo ${guard.cost.toFixed(3)} USD alcanzó el tope`
+    if (guard.failures >= Number(args["max-failures"])) guard.stop = `${guard.failures} fallas seguidas. Último error: ${row.error}`
+    return row
+  })
+).filter((row) => row !== undefined)
+if (guard.stop) console.error(`Corrida detenida: ${guard.stop}. Los resultados son parciales.`)
 
 await Bun.write(path.join(out, "results.json"), JSON.stringify(results, null, 2))
 const report = renderReport(results)
@@ -185,8 +206,21 @@ async function runJob(variant: Variant, prompt: string) {
     .split("\n")
     .flatMap((line) => (line.startsWith("{") ? [JSON.parse(line) as { sessionID?: string }] : []))
     .find((event) => event.sessionID)?.sessionID
-  if (!sessionID) return { ...emptyUsage(), ok: false, error: stderr.trim().split("\n").at(-1) ?? "no session", seconds }
-  return { ...(await readUsage(variant.id, sessionID)), ok: proc.exitCode === 0, error: "", seconds }
+  // With --format json, errors can be on either stream; take the last line of whichever has one.
+  const stdoutMessage = lastLine(stdout).match(/"message":"([^"]+)"/)?.[1]
+  const fallback = lastLine(stderr) || stdoutMessage || lastLine(stdout).slice(0, 300) || "error sin detalle"
+  if (!sessionID) return { ...emptyUsage(), ok: false, error: fallback, seconds }
+  const ok = proc.exitCode === 0
+  const error = ok ? "" : ((await providerError(variant.id, sessionID)) ?? fallback)
+  return { ...(await readUsage(variant.id, sessionID)), ok, error, seconds }
+}
+
+// Exit codes hide the cause; the provider error is only in opencode's log, on lines tagged with the session.
+async function providerError(variant: string, sessionID: string) {
+  const file = path.join(dataHome(variant), "opencode", "log", "opencode.log")
+  if (!(await Bun.file(file).exists())) return undefined
+  const line = (await Bun.file(file).text()).split("\n").findLast((l) => l.includes(sessionID) && l.includes("level=ERROR"))
+  return line?.match(/error(?:\.error)?="([^"]+)"/)?.[1]
 }
 
 async function readUsage(variant: string, sessionID: string) {
@@ -236,6 +270,10 @@ type AssistantMessage = {
   tokens?: { input?: number; output?: number; reasoning?: number; cache?: { read?: number; write?: number } }
 }
 type MessagePart = { type: string; messageID: string; tool?: string; text?: string; state?: { output?: string } }
+
+function lastLine(text: string) {
+  return text.trim().split("\n").at(-1) ?? ""
+}
 
 function countTools(parts: MessagePart[]) {
   return parts
