@@ -105,7 +105,10 @@ Las expectativas que dependen del repo (`registryDeps`, `readTestsPassed`, `olde
 
 ### Protocolo de corrida
 
-1. **Revisar el saldo del proveedor antes de correr.** Con saldo agotado, las corridas fallan con `AI_APICallError: Insufficient Balance` y el benchmark no mide nada (ver la corrida fallida abajo).
+1. **Revisar el saldo del proveedor antes de correr.** Con saldo agotado, las corridas fallan con `AI_APICallError: Insufficient Balance` y el benchmark no mide nada (ver la corrida fallida abajo). El script no puede consultar el saldo, así que este paso sigue siendo manual.
+   - **Tope de gasto:** `--max-cost` (1 USD por defecto). El script estima ~0.015 USD por corrida y no arranca si la estimación supera el tope. Para correr un lote más grande, subir el tope a propósito.
+   - **Corte por costo:** al alcanzar el tope durante la corrida, no se lanzan más corridas. Los resultados quedan marcados como parciales.
+   - **Corte por fallas:** `--max-failures` (3 por defecto). Tras esa cantidad de fallas seguidas, el script se detiene y muestra el error real que leyó del log de opencode.
 2. **No hacer commits ni cambios en el repo mientras corre.** La variante `full` ejecuta el checkout actual; cambiar archivos durante la corrida la contamina.
 3. **Las ediciones van a `<out>/scratch/`**, nunca al repo.
 4. **Medir solo con el número de corridas completo.** Una corrida con fallas no se compara con otra completa.
