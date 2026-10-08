@@ -17,7 +17,17 @@ Estado de verificación de las optimizaciones de herramientas. Para el catálogo
 - **Ahorro de tokens atribuible a cualquier optimización:** el A/B no tiene poder estadístico suficiente (ver `BENCHMARK-SESSION.md`).
 - **Ahorro de la poda con output real de `npm install`, `pytest`, `cargo` o `go test`.**
 
+## Tests que fallan en el código original (preexistentes)
+
+Verificados ejecutando los archivos con y sin los cambios de la rama. Fallan igual en ambos casos; no son regresiones de esta rama.
+
+- `packages/opencode/test/tool/write.test.ts` › "sets file permissions when writing sensitive data": espera modo `0o644`. Causa no investigada.
+- `packages/opencode/test/tool/edit.test.ts` › "detects syntax errors in edited TypeScript file" y "… Python file": causa no investigada. El error que se ve en el log es el de validación sintáctica, pero no revisé qué espera el test exactamente.
+
 ## Historial
+
+- 2026-10-08: el diff completo se guarda en metadata; el truncado ocurre solo al renderizar (TUI y CLI). `write` envía el diff completo al permiso. Ver `packages/core/src/util/diff.ts`.
+- 2026-10-08: el benchmark de 72 corridas (`baseline-v3`) quedó sin medición válida por saldo agotado del proveedor. Ver `BENCHMARK-SESSION.md`.
 
 - 2026-10-06: el A/B end-to-end (`bun run bench:ab`) mostró +20% de tokens con el auto-skeleton y la poda genérica. Se retiraron ambos, y el skeleton quedó opt-in.
 - 2026-10-06: el mismo A/B después de los cambios dio +0.9% de tokens frente a upstream, dentro del ruido.
