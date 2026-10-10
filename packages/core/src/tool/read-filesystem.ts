@@ -8,6 +8,8 @@ import { FSUtil } from "../fs-util"
 import { makeLocationNode } from "../effect/app-node"
 import { AbsolutePath, PositiveInt, RelativePath } from "../schema"
 import { Skeleton } from "../skeleton"
+import { ToolOutputStore } from "../tool-output-store"
+import { Token } from "../util/token"
 
 export const MAX_READ_LINES = 2_000
 export const MAX_READ_BYTES = 50 * 1024
@@ -87,6 +89,7 @@ export class TextPage extends Schema.Class<TextPage>("ReadTool.TextPage")({
   view: Schema.Literals(["full", "skeleton"]).pipe(Schema.optional),
   originalLines: Schema.Number.pipe(Schema.optional),
   skeletonLines: Schema.Number.pipe(Schema.optional),
+  telemetry: Schema.Struct({ rawBytes: Schema.Number, rawTokens: Schema.Number }).pipe(Schema.optional),
 }) {}
 
 export class ListPage extends Schema.Class<ListPage>("ReadTool.ListPage")({
@@ -281,6 +284,7 @@ export const read = Effect.fn("ReadTool.read")(function* (
           const fullContent = text.join("")
           const pruned = yield* skeletonOpt.value.prune(real, fullContent)
           if (pruned.pruned) {
+            const unpruned = ToolOutputStore.boundText(fullContent)
             return new TextPage({
               type: "text-page",
               content: pruned.content,
@@ -290,6 +294,10 @@ export const read = Effect.fn("ReadTool.read")(function* (
               view: "skeleton",
               originalLines: pruned.originalLines,
               skeletonLines: pruned.skeletonLines,
+              telemetry: {
+                rawBytes: Buffer.byteLength(unpruned, "utf-8"),
+                rawTokens: Token.estimate(unpruned),
+              },
             })
           }
           const paged = info.size > MAX_READ_BYTES || page.offset !== undefined || page.limit !== undefined

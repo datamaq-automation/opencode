@@ -201,6 +201,17 @@ describe("BashTool", () => {
             reset()
             const whole = yield* settleTool(registry, call({ command: "echo hello" }, "call-bash-2"))
             expect(whole.telemetry).toBeUndefined()
+
+            reset()
+            const hugeRaw = [
+              ...Array.from({ length: 5000 }, (_, i) => `test_math.py::test_big_${i} PASSED`),
+              "test_math.py::test_big_fail FAILED",
+              "E       assert 1 == 2",
+            ].join("\n")
+            result = { ...result, output: Buffer.from(hugeRaw), stdout: Buffer.from(hugeRaw) }
+            const hugePruned = yield* settleTool(registry, call({ command: "pytest -v" }, "call-bash-3"))
+            expect(hugePruned.telemetry).toBeDefined()
+            expect(hugePruned.telemetry!.rawTokens).toBeLessThan(Token.estimate(hugeRaw))
           }),
         )
       },

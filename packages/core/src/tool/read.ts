@@ -46,6 +46,10 @@ const layer = Layer.effectDiscard(
             "Read a text file or supported image, page through a large UTF-8 text file by line offset, or list a directory page. Relative paths resolve from the current location; absolute paths inside it are accepted, while external absolute paths require external_directory approval.",
           input: Input,
           output: Output,
+          toTelemetry: ({ output }) => {
+            if ("telemetry" in output && output.telemetry) return output.telemetry
+            return undefined
+          },
           toModelOutput: ({ input, output }) => {
             if (!("encoding" in output) || output.encoding !== "base64" || !SUPPORTED_IMAGE_MIMES.has(output.mime))
               return []

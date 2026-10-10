@@ -52,6 +52,9 @@ export function handleRequest(req: any): string {
         expect(result.content).not.toContain("Starting server...")
         expect(result.content).not.toContain("JSON.parse")
         expect(result.skeletonLines).toBeLessThan(result.originalLines!)
+        expect(result.telemetry).toBeDefined()
+        expect(result.telemetry?.rawBytes).toBe(Buffer.byteLength(code, "utf-8"))
+        expect(result.telemetry?.rawTokens).toBeGreaterThan(0)
       }
     }),
   )
@@ -91,6 +94,9 @@ export function handleRequest(req: any): string {
         expect(result.content).not.toContain("self.buffer = []")
         expect(result.content).not.toContain("validated = item.get")
         expect(result.skeletonLines).toBeLessThan(result.originalLines!)
+        expect(result.telemetry).toBeDefined()
+        expect(result.telemetry?.rawBytes).toBe(Buffer.byteLength(code, "utf-8"))
+        expect(result.telemetry?.rawTokens).toBeGreaterThan(0)
       }
     }),
   )

@@ -14,6 +14,7 @@ import { PositiveInt } from "../schema"
 import { ToolRegistry } from "./registry"
 import { Tool } from "./tool"
 import { Tools } from "./tools"
+import { ToolOutputStore } from "../tool-output-store"
 import { TerminalPruner } from "../util/terminal-pruner"
 import { Token } from "../util/token"
 
@@ -194,12 +195,18 @@ const layer = Layer.effectDiscard(
                 ? "[output capture truncated at the in-memory safety limit]"
                 : undefined
               const output = notice ? `${pruned.content}\n\n${notice}` : pruned.content
+              const unpruned = pruned.pruned ? ToolOutputStore.boundText(raw) : undefined
               return {
                 exit: result.exitCode,
                 output,
                 truncated: result.outputTruncated === true || pruned.pruned,
-                ...(pruned.pruned
-                  ? { telemetry: { rawBytes: Buffer.byteLength(raw, "utf-8"), rawTokens: Token.estimate(raw) } }
+                ...(unpruned !== undefined
+                  ? {
+                      telemetry: {
+                        rawBytes: Buffer.byteLength(unpruned, "utf-8"),
+                        rawTokens: Token.estimate(unpruned),
+                      },
+                    }
                   : {}),
                 ...(warnings.length ? { warnings } : {}),
               }

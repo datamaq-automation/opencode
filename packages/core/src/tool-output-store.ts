@@ -109,6 +109,17 @@ const lineCount = (text: string) => {
   return count
 }
 
+export const boundText = (
+  text: string,
+  limits: { readonly maxLines: number; readonly maxBytes: number } = { maxLines: MAX_LINES, maxBytes: MAX_BYTES },
+  marker = "... output truncated ...",
+): string => {
+  if (lineCount(text) <= limits.maxLines && Buffer.byteLength(text, "utf-8") <= limits.maxBytes) {
+    return text
+  }
+  return boundedPreview(text, marker, limits.maxLines, limits.maxBytes)
+}
+
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
