@@ -216,54 +216,41 @@ export const ApplyPatchTool = Tool.define(
         },
       })
 
-      // Apply the changes
-      const updates: Array<{ file: string; event: "add" | "change" | "unlink" }> = []
-
-      for (const change of fileChanges) {
-        const edited = change.type === "delete" ? undefined : (change.movePath ?? change.filePath)
-        switch (change.type) {
-          case "add": {
-            // Create parent directories (recursive: true is safe on existing/root dirs)
-
-            if (Option.isSome(syntax) && syntax.value.supports(change.filePath)) {
-              const newValidation = yield* syntax.value.validate(change.filePath, change.newContent)
-              if (!newValidation.valid) {
-                return yield* Effect.fail(
-                  new Error(
-                    `Syntax validation failed for ${path.basename(change.filePath)}: cannot create file with invalid syntax.\n${syntax.value.formatReport(change.filePath, newValidation.errors)}`,
-                  ),
-                )
+      // Pre-validate syntax for all file changes before persisting any to disk
+      if (Option.isSome(syntax)) {
+        for (const change of fileChanges) {
+          switch (change.type) {
+            case "add": {
+              if (syntax.value.supports(change.filePath)) {
+                const newValidation = yield* syntax.value.validate(change.filePath, change.newContent)
+                if (!newValidation.valid) {
+                  return yield* Effect.fail(
+                    new Error(
+                      `Syntax validation failed for ${path.basename(change.filePath)}: cannot create file with invalid syntax.\n${syntax.value.formatReport(change.filePath, newValidation.errors)}`,
+                    ),
+                  )
+                }
               }
+              break
             }
 
-            yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
-            updates.push({ file: change.filePath, event: "add" })
-            break
-          }
-
-          case "update": {
-            if (Option.isSome(syntax) && syntax.value.supports(change.filePath)) {
-              const oldValidation = yield* syntax.value.validate(change.filePath, change.oldContent)
-              const newValidation = yield* syntax.value.validate(change.filePath, change.newContent)
-              if (oldValidation.valid && !newValidation.valid) {
-                return yield* Effect.fail(
-                  new Error(
-                    `Syntax validation failed for ${path.basename(change.filePath)}: changes would create invalid syntax.\n${syntax.value.formatReport(change.filePath, newValidation.errors)}`,
-                  ),
-                )
+            case "update": {
+              if (syntax.value.supports(change.filePath)) {
+                const oldValidation = yield* syntax.value.validate(change.filePath, change.oldContent)
+                const newValidation = yield* syntax.value.validate(change.filePath, change.newContent)
+                if (oldValidation.valid && !newValidation.valid) {
+                  return yield* Effect.fail(
+                    new Error(
+                      `Syntax validation failed for ${path.basename(change.filePath)}: changes would create invalid syntax.\n${syntax.value.formatReport(change.filePath, newValidation.errors)}`,
+                    ),
+                  )
+                }
               }
+              break
             }
 
-            yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
-            updates.push({ file: change.filePath, event: "change" })
-            break
-          }
-
-          case "move": {
-            if (change.movePath) {
-              // Create parent directories (recursive: true is safe on existing/root dirs)
-
-              if (Option.isSome(syntax) && syntax.value.supports(change.movePath)) {
+            case "move": {
+              if (change.movePath && syntax.value.supports(change.movePath)) {
                 const oldValidation = yield* syntax.value.validate(change.filePath, change.oldContent)
                 const newValidation = yield* syntax.value.validate(change.movePath, change.newContent)
                 if (oldValidation.valid && !newValidation.valid) {
@@ -274,7 +261,35 @@ export const ApplyPatchTool = Tool.define(
                   )
                 }
               }
+              break
+            }
 
+            case "delete":
+              break
+          }
+        }
+      }
+
+      // Apply the changes
+      const updates: Array<{ file: string; event: "add" | "change" | "unlink" }> = []
+
+      for (const change of fileChanges) {
+        const edited = change.type === "delete" ? undefined : (change.movePath ?? change.filePath)
+        switch (change.type) {
+          case "add": {
+            yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
+            updates.push({ file: change.filePath, event: "add" })
+            break
+          }
+
+          case "update": {
+            yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
+            updates.push({ file: change.filePath, event: "change" })
+            break
+          }
+
+          case "move": {
+            if (change.movePath) {
               yield* afs.writeWithDirs(change.movePath!, Bom.join(change.newContent, change.bom))
               yield* afs.remove(change.filePath)
               updates.push({ file: change.filePath, event: "unlink" })
