@@ -193,5 +193,73 @@ describe("Semantic Search & Local Embeddings", () => {
       expect(batch.has("h3")).toBe(true)
       expect(batch.has("missing")).toBe(false)
     })
+
+    it("serves repeated reads from in-memory LRU cache even if SQLite records are removed", async () => {
+      const db = SemanticCache.createDatabase(":memory:")
+      const cache = SemanticCache.makeService(db)
+      const model = "test-model"
+      const hash = "in-memory-hash"
+      const vector = [0.1, 0.2, 0.3]
+
+      await Effect.runPromise(cache.set(hash, model, vector))
+
+      // Delete directly from SQLite to prove subsequent get is served from RAM
+      db.run("DELETE FROM embedding_cache WHERE hash = ?", [hash])
+
+      const fromRam = await Effect.runPromise(cache.get(hash, model))
+      expect(fromRam).toBeDefined()
+      expect(fromRam).toEqual(vector)
+    })
+
+    it("evicts least recently used items when in-memory LRU capacity is exceeded", async () => {
+      const db = SemanticCache.createDatabase(":memory:")
+      // Create cache with capacity of 2 items
+      const cache = SemanticCache.makeService(db, 2)
+      const model = "test-model"
+
+      await Effect.runPromise(cache.set("h1", model, [1.0]))
+      await Effect.runPromise(cache.set("h2", model, [2.0]))
+
+      // Access h1 to make it most recently used (h2 becomes oldest)
+      await Effect.runPromise(cache.get("h1", model))
+
+      // Insert h3 -> should evict h2 from RAM
+      await Effect.runPromise(cache.set("h3", model, [3.0]))
+
+      // Delete all from SQLite to inspect RAM contents
+      db.run("DELETE FROM embedding_cache")
+
+      // h1 should still be in RAM
+      expect(await Effect.runPromise(cache.get("h1", model))).toEqual([1.0])
+      // h3 should still be in RAM
+      expect(await Effect.runPromise(cache.get("h3", model))).toEqual([3.0])
+      // h2 should have been evicted from RAM and now returns undefined (since SQLite was cleared)
+      expect(await Effect.runPromise(cache.get("h2", model))).toBeUndefined()
+    })
+
+    it("populates in-memory cache on SQLite read miss and serves subsequent calls from RAM", async () => {
+      const db = SemanticCache.createDatabase(":memory:")
+      const cache = SemanticCache.makeService(db)
+      const model = "test-model"
+
+      // Insert directly into SQLite (bypassing LRU set)
+      const blob = new Uint8Array(new Float32Array([0.5, 0.6]).buffer)
+      db.run(
+        "INSERT INTO embedding_cache (hash, model, vector, dims, created_at) VALUES (?, ?, ?, ?, ?)",
+        ["direct-h", model, blob, 2, Date.now()],
+      )
+
+      // First read should read from SQLite and populate LRU
+      const firstRead = await Effect.runPromise(cache.get("direct-h", model))
+      expect(firstRead).toBeDefined()
+
+      // Delete from SQLite
+      db.run("DELETE FROM embedding_cache WHERE hash = ?", ["direct-h"])
+
+      // Second read should be served from LRU cache
+      const secondRead = await Effect.runPromise(cache.get("direct-h", model))
+      expect(secondRead).toBeDefined()
+      expect(secondRead).toEqual(firstRead)
+    })
   })
 })

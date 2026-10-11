@@ -67,7 +67,9 @@ export const createDatabase = (dbPath?: string): Database => {
   return db
 }
 
-export const makeService = (db: Database): Interface => {
+export const DEFAULT_LRU_CAPACITY = 256
+
+export const makeService = (db: Database, lruCapacity = DEFAULT_LRU_CAPACITY): Interface => {
   const selectOne = db.query<
     { vector: Uint8Array },
     [string, string]
@@ -77,12 +79,45 @@ export const makeService = (db: Database): Interface => {
     "INSERT OR REPLACE INTO embedding_cache (hash, model, vector, dims, created_at) VALUES (?, ?, ?, ?, ?)",
   )
 
+  const lru = new Map<string, readonly number[]>()
+  const lruKey = (model: string, hash: string) => `${model}:${hash}`
+
+  const lruGet = (key: string): readonly number[] | undefined => {
+    const val = lru.get(key)
+    if (val === undefined) return undefined
+    lru.delete(key)
+    lru.set(key, val)
+    return val
+  }
+
+  const lruSet = (key: string, vector: readonly number[]) => {
+    if (lruCapacity <= 0) return
+    if (lru.has(key)) {
+      lru.delete(key)
+      lru.set(key, vector)
+      return
+    }
+    if (lru.size >= lruCapacity) {
+      const oldest = lru.keys().next().value
+      if (oldest !== undefined) {
+        lru.delete(oldest)
+      }
+    }
+    lru.set(key, vector)
+  }
+
   const get = (hash: string, model: string) =>
     Effect.try({
       try: () => {
+        const key = lruKey(model, hash)
+        const cached = lruGet(key)
+        if (cached !== undefined) return cached
+
         const row = selectOne.get(hash, model)
         if (!row || !row.vector) return undefined
-        return deserializeVector(row.vector)
+        const vec = deserializeVector(row.vector)
+        lruSet(key, vec)
+        return vec
       },
       catch: (cause) => new CacheError({ message: `Failed to read cache for hash ${hash}`, cause }),
     })
@@ -94,9 +129,17 @@ export const makeService = (db: Database): Interface => {
         if (hashes.length === 0) return map
 
         for (const h of hashes) {
+          const key = lruKey(model, h)
+          const cached = lruGet(key)
+          if (cached !== undefined) {
+            map.set(h, cached)
+            continue
+          }
           const row = selectOne.get(h, model)
           if (row && row.vector) {
-            map.set(h, deserializeVector(row.vector))
+            const vec = deserializeVector(row.vector)
+            lruSet(key, vec)
+            map.set(h, vec)
           }
         }
         return map
@@ -107,6 +150,7 @@ export const makeService = (db: Database): Interface => {
   const set = (hash: string, model: string, vector: readonly number[]) =>
     Effect.try({
       try: () => {
+        lruSet(lruKey(model, hash), vector)
         const blob = serializeVector(vector)
         insertOne.run(hash, model, blob, vector.length, Date.now())
       },
@@ -117,6 +161,9 @@ export const makeService = (db: Database): Interface => {
     Effect.try({
       try: () => {
         if (entries.length === 0) return
+        for (const entry of entries) {
+          lruSet(lruKey(model, entry.hash), entry.vector)
+        }
         const now = Date.now()
         db.transaction(() => {
           for (const entry of entries) {
