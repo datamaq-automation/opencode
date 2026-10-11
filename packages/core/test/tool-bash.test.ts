@@ -17,6 +17,7 @@ import { SessionV2 } from "@opencode-ai/core/session"
 import { BashTool } from "@opencode-ai/core/tool/bash"
 import { ToolRegistry } from "@opencode-ai/core/tool/registry"
 import { ToolOutputStore } from "@opencode-ai/core/tool-output-store"
+import { Token } from "@opencode-ai/core/util/token"
 import { location } from "./fixture/location"
 import { tmpdir } from "./fixture/tmpdir"
 import { testEffect } from "./lib/effect"
@@ -180,6 +181,43 @@ describe("BashTool", () => {
     ),
   )
 
+  it.live("reports raw output size in settlement telemetry only when pruning shortened the output", () =>
+    Effect.acquireUseRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => {
+        reset()
+        const raw = [
+          ...Array.from({ length: 120 }, (_, i) => `test_math.py::test_add_${i} PASSED`),
+          "test_math.py::test_add_broken FAILED",
+          "E       assert 4 == 5",
+        ].join("\n")
+        result = { ...result, output: Buffer.from(raw), stdout: Buffer.from(raw) }
+        return withTool(tmp.path, (registry) =>
+          Effect.gen(function* () {
+            const pruned = yield* settleTool(registry, call({ command: "pytest -v" }))
+            expect(pruned.telemetry).toEqual({ rawBytes: Buffer.byteLength(raw, "utf-8"), rawTokens: Token.estimate(raw) })
+            expect(JSON.stringify(pruned.output?.structured)).not.toContain("rawTokens")
+
+            reset()
+            const whole = yield* settleTool(registry, call({ command: "echo hello" }, "call-bash-2"))
+            expect(whole.telemetry).toBeUndefined()
+
+            reset()
+            const hugeRaw = [
+              ...Array.from({ length: 5000 }, (_, i) => `test_math.py::test_big_${i} PASSED`),
+              "test_math.py::test_big_fail FAILED",
+              "E       assert 1 == 2",
+            ].join("\n")
+            result = { ...result, output: Buffer.from(hugeRaw), stdout: Buffer.from(hugeRaw) }
+            const hugePruned = yield* settleTool(registry, call({ command: "pytest -v" }, "call-bash-3"))
+            expect(hugePruned.telemetry).toBeDefined()
+            expect(hugePruned.telemetry!.rawTokens).toBeLessThan(Token.estimate(hugeRaw))
+          }),
+        )
+      },
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ),
+  )
   it.live("resolves a relative workdir from the active Location", () =>
     Effect.acquireUseRelease(
       Effect.promise(() => tmpdir()),

@@ -37,6 +37,17 @@ export type Content =
   | { readonly type: "text"; readonly text: string }
   | { readonly type: "file"; readonly data: string; readonly mime: string; readonly name?: string }
 
+// Size of the output before the tool pruned it, so telemetry can report what pruning saved.
+export interface Telemetry {
+  readonly rawBytes: number
+  readonly rawTokens: number
+}
+
+export interface Settled {
+  readonly output: ToolOutput
+  readonly telemetry?: Telemetry
+}
+
 type Config<
   Input extends SchemaType<any>,
   Output extends SchemaType<any>,
@@ -58,12 +69,13 @@ type Config<
     readonly input: Schema.Schema.Type<Input>
     readonly output: Output["Encoded"]
   }) => ReadonlyArray<Content>
+  readonly toTelemetry?: (input: { readonly output: Output["Encoded"] }) => Telemetry | undefined
 }
 
 type Runtime = {
   readonly permission?: string
   readonly definition: (name: string) => ToolDefinition
-  readonly settle: (call: ToolCall, context: Context) => Effect.Effect<ToolOutput, ToolFailure>
+  readonly settle: (call: ToolCall, context: Context) => Effect.Effect<Settled, ToolFailure>
 }
 
 const runtimes = new WeakMap<AnyTool, Runtime>()
@@ -111,24 +123,24 @@ export function make<
               ),
             ),
             Effect.map(({ output, structured }) => {
-              const result: any = {
-                structured,
-                content:
-                  config.toModelOutput?.({ input, output }).map((part) =>
-                    part.type === "text"
-                      ? { type: "text" as const, text: part.text }
-                      : {
-                          type: "file" as const,
-                          uri: `data:${part.mime};base64,${part.data}`,
-                          mime: part.mime,
-                          name: part.name,
-                        },
-                  ) ?? (typeof output === "string" ? [{ type: "text" as const, text: output }] : []),
+              const telemetry = config.toTelemetry?.({ output })
+              return {
+                output: {
+                  structured,
+                  content:
+                    config.toModelOutput?.({ input, output }).map((part) =>
+                      part.type === "text"
+                        ? { type: "text" as const, text: part.text }
+                        : {
+                            type: "file" as const,
+                            uri: `data:${part.mime};base64,${part.data}`,
+                            mime: part.mime,
+                            name: part.name,
+                          },
+                    ) ?? (typeof output === "string" ? [{ type: "text" as const, text: output }] : []),
+                },
+                ...(telemetry ? { telemetry } : {}),
               }
-              if (typeof output === "object" && output !== null && "_rawBytes" in output) {
-                result.rawBytes = (output as any)._rawBytes
-              }
-              return result
             }),
           ),
         ),

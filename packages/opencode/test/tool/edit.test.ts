@@ -574,36 +574,40 @@ describe("tool.edit", () => {
   })
 
   describe("syntax validation", () => {
-    it.instance("detects syntax errors in edited TypeScript file", () =>
+    it.instance("rejects edits that break a valid TypeScript file and leaves content unchanged", () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
         const filepath = path.join(test.directory, "test.ts")
-        yield* put(filepath, "export function foo(): string {\n  return 'hello'\n}\n")
+        const original = "export function foo(): string {\n  return 'hello'\n}\n"
+        yield* put(filepath, original)
 
-        const res = yield* run({
+        const err = yield* fail({
           filePath: filepath,
           oldString: "return 'hello'",
           newString: "const broken = ",
         })
 
-        expect(res.output).toContain("Syntax error(s) detected in test.ts")
-        expect(res.output).toContain("Expression expected")
+        expect(err.message).toContain("Syntax validation failed")
+        expect(err.message).toContain("Expression expected")
+        expect(yield* load(filepath)).toBe(original)
       }),
     )
 
-    it.instance("detects syntax errors in edited Python file", () =>
+    it.instance("rejects edits that break a valid Python file and leaves content unchanged", () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
         const filepath = path.join(test.directory, "app.py")
-        yield* put(filepath, "def calculate():\n    return 42\n")
+        const original = "def calculate():\n    return 42\n"
+        yield* put(filepath, original)
 
-        const res = yield* run({
+        const err = yield* fail({
           filePath: filepath,
           oldString: "def calculate():",
           newString: "def calculate(",
         })
 
-        expect(res.output).toContain("Syntax error(s) detected in app.py")
+        expect(err.message).toContain("Syntax validation failed")
+        expect(yield* load(filepath)).toBe(original)
       }),
     )
 

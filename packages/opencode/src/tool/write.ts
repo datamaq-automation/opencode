@@ -11,7 +11,7 @@ import { Watcher } from "@opencode-ai/core/filesystem/watcher"
 import { Format } from "../format"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { InstanceState } from "@/effect/instance-state"
-import { trimDiff, compactLargeDiff } from "./edit"
+import { trimDiff } from "./edit"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import * as Bom from "@/util/bom"
 import { SyntaxValidator } from "../syntax"
@@ -59,7 +59,7 @@ export const WriteTool = Tool.define(
             always: ["*"],
             metadata: {
               filepath,
-              diff: compactLargeDiff(diff),
+              diff,
             },
           })
 

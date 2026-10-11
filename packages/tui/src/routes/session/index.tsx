@@ -78,6 +78,7 @@ import { collapseToolOutput } from "../../util/collapse-tool-output"
 import { usePluginRuntime } from "../../plugin/runtime"
 import { DialogRetryAction } from "../../component/dialog-retry-action"
 import { getRevertDiffFiles } from "../../util/revert-diff"
+import { compactLargeDiff } from "@opencode-ai/core/util/diff"
 import { OPENCODE_BASE_MODE, useBindings, useCommandShortcut, useOpencodeKeymap } from "../../keymap"
 import { usePathFormatter } from "../../context/path-format"
 import { LocationProvider } from "../../context/location"
@@ -2401,7 +2402,7 @@ function Edit(props: ToolProps) {
 
   const ft = createMemo(() => filetype(stringValue(props.input.filePath)))
 
-  const diffContent = createMemo(() => stringValue(props.metadata.diff) ?? "")
+  const diffContent = createMemo(() => compactLargeDiff(stringValue(props.metadata.diff) ?? ""))
 
   return (
     <Switch>

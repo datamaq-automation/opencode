@@ -18,6 +18,8 @@ Valid types are `feat`, `fix`, `docs`, `chore`, `refactor`, and `test`. Scopes a
 
 Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributing guide`, `chore(sdk): regenerate types`.
 
+Commits must be atomic: one logical change per commit. Split unrelated changes (a bug fix, a refactor, a dependency or script change) into separate commits, and keep each test with the code it covers. Each commit should typecheck and pass its own tests on its own. Stage explicit paths (`git add <file>`) instead of `git add -A`, so each commit contains only what it describes.
+
 ## Style Guide
 
 ### General Principles

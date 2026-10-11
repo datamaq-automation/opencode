@@ -14,7 +14,9 @@ import { PositiveInt } from "../schema"
 import { ToolRegistry } from "./registry"
 import { Tool } from "./tool"
 import { Tools } from "./tools"
+import { ToolOutputStore } from "../tool-output-store"
 import { TerminalPruner } from "../util/terminal-pruner"
+import { Token } from "../util/token"
 
 export const name = "bash"
 export const DEFAULT_TIMEOUT_MS = 2 * 60 * 1_000
@@ -43,6 +45,8 @@ const Output = Schema.Struct({
   ...StructuredOutput.fields,
   output: Schema.String,
   warnings: Schema.Array(Schema.String).pipe(Schema.optional),
+  // Present only when pruning shortened the output; never shown to the model.
+  telemetry: Schema.Struct({ rawBytes: Schema.Number, rawTokens: Schema.Number }).pipe(Schema.optional),
 })
 
 type Output = typeof Output.Type
@@ -120,6 +124,7 @@ const layer = Layer.effectDiscard(
             { type: "text", text: output.output },
             { type: "text", text: modelOutput(output) },
           ],
+          toTelemetry: ({ output }) => output.telemetry,
           execute: (input, context) =>
             Effect.gen(function* () {
               const source = {
@@ -185,17 +190,24 @@ const layer = Layer.effectDiscard(
               }
 
               const raw = result.output?.toString("utf8") || "(no output)"
-              const rawBytes = Buffer.byteLength(raw, "utf-8")
               const pruned = TerminalPruner.prune(raw, { command: input.command })
               const notice = result.outputTruncated
                 ? "[output capture truncated at the in-memory safety limit]"
                 : undefined
               const output = notice ? `${pruned.content}\n\n${notice}` : pruned.content
+              const unpruned = pruned.pruned ? ToolOutputStore.boundText(raw) : undefined
               return {
                 exit: result.exitCode,
                 output,
                 truncated: result.outputTruncated === true || pruned.pruned,
-                _rawBytes: rawBytes,
+                ...(unpruned !== undefined
+                  ? {
+                      telemetry: {
+                        rawBytes: Buffer.byteLength(unpruned, "utf-8"),
+                        rawTokens: Token.estimate(unpruned),
+                      },
+                    }
+                  : {}),
                 ...(warnings.length ? { warnings } : {}),
               }
             }).pipe(Effect.mapError(() => new ToolFailure({ message: `Unable to execute command: ${input.command}` }))),

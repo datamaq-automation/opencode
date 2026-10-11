@@ -8,6 +8,7 @@ import { SessionV2 } from "@opencode-ai/core/session"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { createLLMEventPublisher } from "@opencode-ai/core/session/runner/publish-llm-event"
+import { Token } from "@opencode-ai/core/util/token"
 
 const sessionID = SessionV2.ID.make("ses_telemetry_test")
 
@@ -62,9 +63,10 @@ test("publishes telemetry on tool success with token metrics", async () => {
     )
   )
 
-  // Simulate raw (unp pruned) output much larger than the pruned version
+  // Simulate raw (unpruned) output much larger than the pruned version
   const prunedOutput = largeOutput.slice(0, 100)
   const rawBytes = Buffer.byteLength(largeOutput, "utf-8")
+  const rawTokens = Token.estimate(largeOutput)
 
   await Effect.runPromise(
     publisher.publish(
@@ -79,7 +81,7 @@ test("publishes telemetry on tool success with token metrics", async () => {
           structured: { type: "text" },
           content: [{ type: "text", text: prunedOutput }],
         },
-        metadata: { rawBytes },
+        metadata: { rawBytes, rawTokens },
       })
     )
   )
@@ -93,50 +95,56 @@ test("publishes telemetry on tool success with token metrics", async () => {
 
   const tel = (telemetry?.data as any).telemetry
   expect(tel).toBeDefined()
-  expect(tel.prunedBytes).toBeGreaterThan(0)
-  expect(tel.rawTokens).toBeGreaterThan(0)
-  expect(tel.tokensSaved).toBeGreaterThan(0)
-  expect(tel.rawBytes).toBeGreaterThan(tel.prunedBytes)
+  expect(tel).toEqual({
+    rawBytes,
+    prunedBytes: Buffer.byteLength(prunedOutput, "utf-8"),
+    rawTokens,
+    tokensSaved: rawTokens - Token.estimate(prunedOutput),
+  })
 })
 
-test("calculates zero tokens saved when no pruning occurs", async () => {
-  const { published, publisher } = capture()
-  const output = "Short text"
+// Unpruned output must report nothing saved, whatever its length or encoding: 9 characters is where
+// rounding chars and ceiling bytes disagree, and non-ASCII text has more bytes than characters.
+for (const output of ["Short tex", "Configuración del túnel: ñandú → ok"]) {
+  test(`calculates zero tokens saved when no pruning occurs: ${output}`, async () => {
+    const { published, publisher } = capture()
 
-  await Effect.runPromise(
-    publisher.publish(
-      LLMEvent.toolCall({
-        id: "call-short",
-        name: "read",
-        input: { path: "file.txt" },
-      })
+    await Effect.runPromise(
+      publisher.publish(
+        LLMEvent.toolCall({
+          id: "call-short",
+          name: "read",
+          input: { path: "file.txt" },
+        }),
+      ),
     )
-  )
 
-  await Effect.runPromise(
-    publisher.publish(
-      LLMEvent.toolResult({
-        id: "call-short",
-        name: "read",
-        result: {
-          type: "content",
-          value: [{ type: "text", text: output }],
-        },
-        output: {
-          structured: { type: "text" },
-          content: [{ type: "text", text: output }],
-        },
-      })
+    await Effect.runPromise(
+      publisher.publish(
+        LLMEvent.toolResult({
+          id: "call-short",
+          name: "read",
+          result: {
+            type: "content",
+            value: [{ type: "text", text: output }],
+          },
+          output: {
+            structured: { type: "text" },
+            content: [{ type: "text", text: output }],
+          },
+        }),
+      ),
     )
-  )
 
-  const telemetry = published.find((event) => event.type === "session.next.tool.telemetry.1")
-  expect(telemetry).toBeDefined()
+    const telemetry = published.find((event) => event.type === "session.next.tool.telemetry.1")
+    expect(telemetry).toBeDefined()
 
-  const tel = (telemetry?.data as any).telemetry
-  expect(tel.rawBytes).toBe(tel.prunedBytes)
-  expect(tel.tokensSaved).toBe(0)
-})
+    const tel = (telemetry?.data as any).telemetry
+    expect(tel.rawBytes).toBe(tel.prunedBytes)
+    expect(tel.rawTokens).toBe(Token.estimate(output))
+    expect(tel.tokensSaved).toBe(0)
+  })
+}
 
 test("handles multiple tool invocations with separate telemetry", async () => {
   const { published, publisher } = capture()

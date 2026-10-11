@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+math.test.ts:
+81 | test("adds 19", () => {
+82 |   expect(add(19, 1)).toBe(20)
+83 | })
+84 | 
+85 | test("adds broken", () => {
+86 |   expect(add(2, 2)).toBe(5)
+                         ^
+error: expect(received).toBe(expected)
+
+Expected: 5
+Received: 4
+
+      at <anonymous> (/work/math.test.ts:86:21)
+(fail) adds broken [0.56ms]
+
+ 20 pass
+ 1 fail
+ 21 expect() calls
+Ran 21 tests across 1 file. [9.00ms]

@@ -11,13 +11,22 @@ import { Format } from "../../src/format"
 import { Agent } from "../../src/agent/agent"
 import { EventV2Bridge } from "../../src/event-v2-bridge"
 import { Truncate } from "@/tool/truncate"
+import { SyntaxValidator } from "@/syntax"
 import { TestInstance } from "../fixture/fixture"
 import { SessionID, MessageID } from "../../src/session/schema"
 import { testEffect } from "../lib/effect"
 
 const it = testEffect(
   LayerNode.compile(
-    LayerNode.group([LSP.node, FSUtil.node, Format.node, EventV2Bridge.node, Truncate.node, Agent.node]),
+    LayerNode.group([
+      LSP.node,
+      FSUtil.node,
+      Format.node,
+      EventV2Bridge.node,
+      Truncate.node,
+      Agent.node,
+      SyntaxValidator.node,
+    ]),
   ),
 )
 
@@ -217,6 +226,43 @@ describe("tool.apply_patch freeform", () => {
       yield* execute({ patchText }, ctx)
 
       expect(yield* readText(target)).toBe("line1\nchanged2\nline3\nchanged4\n")
+    }),
+  )
+
+  it.instance("rejects adding a file with invalid syntax", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const { ctx } = makeCtx()
+
+      yield* expectFailure(
+        execute({ patchText: "*** Begin Patch\n*** Add File: broken.ts\n+export const answer = \n*** End Patch" }, ctx),
+        "Syntax validation failed for broken.ts",
+      )
+
+      yield* expectReadFailure(path.join(test.directory, "broken.ts"))
+    }),
+  )
+
+  it.instance("rejects updates that break a valid file and leaves content unchanged", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const { ctx } = makeCtx()
+      const target = path.join(test.directory, "valid.ts")
+      const original = "export const answer = 42\n"
+      yield* writeText(target, original)
+
+      yield* expectFailure(
+        execute(
+          {
+            patchText:
+              "*** Begin Patch\n*** Update File: valid.ts\n@@\n-export const answer = 42\n+export const answer = \n*** End Patch",
+          },
+          ctx,
+        ),
+        "Syntax validation failed for valid.ts",
+      )
+
+      expect(yield* readText(target)).toBe(original)
     }),
   )
 
