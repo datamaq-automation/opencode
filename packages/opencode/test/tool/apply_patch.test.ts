@@ -266,6 +266,32 @@ describe("tool.apply_patch freeform", () => {
     }),
   )
 
+  it.instance("validates syntax for all files before writing and leaves preceding files unchanged on failure", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const { ctx } = makeCtx()
+      const firstTarget = path.join(test.directory, "first.ts")
+      const firstOriginal = "export const first = 1\n"
+      yield* writeText(firstTarget, firstOriginal)
+
+      const patchText = [
+        "*** Begin Patch",
+        "*** Update File: first.ts",
+        "@@",
+        "-export const first = 1",
+        "+export const first = 100",
+        "*** Add File: second_broken.ts",
+        "+export const broken = ",
+        "*** End Patch",
+      ].join("\n")
+
+      yield* expectFailure(execute({ patchText }, ctx), "Syntax validation failed for second_broken.ts")
+
+      expect(yield* readText(firstTarget)).toBe(firstOriginal)
+      yield* expectReadFailure(path.join(test.directory, "second_broken.ts"))
+    }),
+  )
+
   it.instance("does not invent a first-line diff for BOM files", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
